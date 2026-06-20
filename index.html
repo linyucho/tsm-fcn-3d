@@ -1,0 +1,935 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>TSM 台積電 ADR｜3D K 線＋均線＋成交量＋FCN 條件</title>
+  <meta name="description" content="TSM 台積電 ADR 3D K線互動頁，標示 MA5/MA20/MA60、成交量、FCN KO/K/AKI 條件，支援手機雙指縮放。" />
+  <style>
+    :root {
+      --bg: #080d1a;
+      --panel: rgba(8, 14, 30, .74);
+      --panel-strong: rgba(7, 11, 22, .88);
+      --panel2: rgba(255,255,255,.085);
+      --line: rgba(255,255,255,.14);
+      --text: rgba(255,255,255,.94);
+      --muted: rgba(255,255,255,.64);
+      --red: #ff4d4d;
+      --green: #00d084;
+      --ma5: #36d1ff;
+      --ma20: #ffd166;
+      --ma60: #b388ff;
+      --vol: #ffffff;
+      --ko: #ff5f7e;
+      --strike: #ff9f1c;
+      --aki: #4cc9f0;
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      background:
+        radial-gradient(circle at 16% 18%, rgba(54, 209, 255, .18), transparent 30%),
+        radial-gradient(circle at 82% 22%, rgba(255, 95, 126, .14), transparent 31%),
+        radial-gradient(circle at 62% 86%, rgba(179, 136, 255, .10), transparent 32%),
+        linear-gradient(135deg, #070b16 0%, #101733 100%);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans TC", "PingFang TC", sans-serif;
+    }
+
+    #stage {
+      position: fixed;
+      inset: 0;
+      width: 100vw;
+      height: 100vh;
+      touch-action: none;
+      cursor: grab;
+    }
+    #stage:active { cursor: grabbing; }
+
+    .hud {
+      position: fixed;
+      left: max(16px, env(safe-area-inset-left));
+      top: max(14px, env(safe-area-inset-top));
+      width: min(452px, calc(100vw - 32px));
+      z-index: 10;
+      padding: 16px;
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      background: var(--panel);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+      box-shadow: 0 18px 52px rgba(0,0,0,.32);
+    }
+
+    .rightPanel {
+      position: fixed;
+      right: max(16px, env(safe-area-inset-right));
+      top: max(14px, env(safe-area-inset-top));
+      width: min(360px, calc(100vw - 32px));
+      z-index: 10;
+      padding: 15px;
+      border: 1px solid rgba(255,255,255,.13);
+      border-radius: 22px;
+      background: var(--panel);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+      box-shadow: 0 18px 52px rgba(0,0,0,.28);
+    }
+
+    .titleRow {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 7px 10px;
+      border-radius: 999px;
+      background: rgba(255,255,255,.08);
+      color: var(--muted);
+      font-size: 12px;
+      white-space: nowrap;
+      margin-top: 1px;
+    }
+
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 999px;
+      background: var(--ma20);
+      box-shadow: 0 0 18px var(--ma20);
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 20px;
+      line-height: 1.18;
+      letter-spacing: .2px;
+    }
+
+    h2 {
+      margin: 0 0 10px 0;
+      font-size: 16px;
+      letter-spacing: .2px;
+    }
+
+    .subtitle {
+      margin-top: 7px;
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    .priceBox, .fcnBox {
+      margin-top: 14px;
+      display: grid;
+      grid-template-columns: 1.2fr 1fr 1fr;
+      gap: 9px;
+    }
+
+    .fcnBox {
+      grid-template-columns: 1fr 1fr;
+      margin-top: 10px;
+    }
+
+    .metric {
+      padding: 10px 11px;
+      border-radius: 15px;
+      background: var(--panel2);
+      border: 1px solid rgba(255,255,255,.08);
+      min-width: 0;
+    }
+
+    .metric .label {
+      font-size: 11px;
+      color: var(--muted);
+      margin-bottom: 4px;
+      line-height: 1.3;
+    }
+
+    .metric .value {
+      font-size: 15px;
+      font-weight: 750;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .metric.ko { border-color: rgba(255,95,126,.35); }
+    .metric.strike { border-color: rgba(255,159,28,.36); }
+    .metric.aki { border-color: rgba(76,201,240,.36); }
+
+    .buttons {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 14px;
+    }
+
+    button {
+      appearance: none;
+      border: 1px solid rgba(255,255,255,.16);
+      background: rgba(255,255,255,.08);
+      color: var(--text);
+      border-radius: 999px;
+      padding: 9px 12px;
+      font-weight: 680;
+      font-size: 13px;
+      cursor: pointer;
+      transition: transform .15s ease, background .15s ease, border-color .15s ease;
+    }
+
+    button:hover {
+      transform: translateY(-1px);
+      background: rgba(255,255,255,.13);
+      border-color: rgba(255,255,255,.26);
+    }
+
+    button.active {
+      color: #08101f;
+      background: rgba(255, 209, 102, .96);
+      border-color: rgba(255, 209, 102, 1);
+    }
+
+    .legend {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-top: 12px;
+      color: var(--muted);
+      font-size: 12px;
+      flex-wrap: wrap;
+    }
+
+    .legend span {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .swatch {
+      width: 10px;
+      height: 10px;
+      border-radius: 3px;
+      display: inline-block;
+    }
+
+    .help, .note {
+      margin-top: 11px;
+      color: rgba(255,255,255,.66);
+      font-size: 12px;
+      line-height: 1.58;
+    }
+
+    .note {
+      padding: 10px 11px;
+      border: 1px solid rgba(255,255,255,.10);
+      background: rgba(255,255,255,.06);
+      border-radius: 15px;
+    }
+
+    .inputRow {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    input {
+      width: 100%;
+      border: 1px solid rgba(255,255,255,.16);
+      background: rgba(255,255,255,.09);
+      color: var(--text);
+      border-radius: 13px;
+      padding: 10px 11px;
+      font-size: 13px;
+      outline: none;
+    }
+
+    input::placeholder { color: rgba(255,255,255,.42); }
+
+    #tooltip {
+      position: fixed;
+      z-index: 12;
+      pointer-events: none;
+      min-width: 250px;
+      max-width: 320px;
+      padding: 12px 13px;
+      border-radius: 16px;
+      border: 1px solid rgba(255,255,255,.16);
+      background: rgba(5, 9, 18, .88);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      color: var(--text);
+      box-shadow: 0 16px 40px rgba(0,0,0,.35);
+      display: none;
+      font-size: 13px;
+      line-height: 1.58;
+    }
+    #tooltip b { font-size: 14px; }
+
+    .footnote {
+      position: fixed;
+      right: max(14px, env(safe-area-inset-right));
+      bottom: max(12px, env(safe-area-inset-bottom));
+      z-index: 9;
+      padding: 10px 12px;
+      max-width: min(720px, calc(100vw - 28px));
+      border-radius: 16px;
+      background: rgba(0,0,0,.36);
+      border: 1px solid rgba(255,255,255,.1);
+      color: rgba(255,255,255,.61);
+      font-size: 12px;
+      line-height: 1.45;
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+    }
+
+    .loading {
+      position: fixed;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      z-index: 4;
+      color: rgba(255,255,255,.75);
+      pointer-events: none;
+      font-size: 14px;
+    }
+
+    @media (max-width: 980px) {
+      .rightPanel {
+        top: auto;
+        bottom: max(74px, env(safe-area-inset-bottom));
+        width: min(452px, calc(100vw - 32px));
+      }
+      .footnote { display: none; }
+    }
+
+    @media (max-width: 760px) {
+      .hud, .rightPanel {
+        padding: 13px;
+        border-radius: 20px;
+      }
+      h1 { font-size: 18px; }
+      .priceBox { grid-template-columns: 1fr 1fr; }
+      .priceBox .metric:first-child { grid-column: 1 / -1; }
+      .rightPanel { max-height: 43vh; overflow: auto; }
+      .help { display: none; }
+      .legend { gap: 8px; }
+    }
+  </style>
+
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.165.0/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.165.0/examples/jsm/"
+      }
+    }
+  </script>
+</head>
+
+<body>
+  <div id="stage"></div>
+
+  <section class="hud">
+    <div class="titleRow">
+      <div>
+        <h1>TSM 台積電 ADR｜3D K 線</h1>
+        <div class="subtitle">已標示 MA5 / MA20 / MA60、成交量、20 日均量，以及 FCN 價格條件。</div>
+      </div>
+      <div class="badge"><i class="dot"></i><span id="sourceBadge">讀取中</span></div>
+    </div>
+
+    <div class="priceBox">
+      <div class="metric">
+        <div class="label">最新收盤 / 參考價</div>
+        <div class="value" id="lastPrice">--</div>
+      </div>
+      <div class="metric">
+        <div class="label">區間高點</div>
+        <div class="value" id="rangeHigh">--</div>
+      </div>
+      <div class="metric">
+        <div class="label">區間低點</div>
+        <div class="value" id="rangeLow">--</div>
+      </div>
+    </div>
+
+    <div class="buttons">
+      <button data-range="1mo">1M</button>
+      <button data-range="3mo">3M</button>
+      <button data-range="6mo" class="active">6M</button>
+      <button data-range="1y">1Y</button>
+      <button id="resetView">重設視角</button>
+    </div>
+
+    <div class="legend">
+      <span><i class="swatch" style="background: var(--red)"></i>上漲 K</span>
+      <span><i class="swatch" style="background: var(--green)"></i>下跌 K</span>
+      <span><i class="swatch" style="background: var(--ma5)"></i>MA5</span>
+      <span><i class="swatch" style="background: var(--ma20)"></i>MA20</span>
+      <span><i class="swatch" style="background: var(--ma60)"></i>MA60</span>
+      <span><i class="swatch" style="background: rgba(255,255,255,.55)"></i>成交量</span>
+    </div>
+
+    <div class="help">
+      電腦：滑鼠拖曳旋轉、滾輪縮放、右鍵平移。手機：一指旋轉、雙指放大縮小、雙指拖曳平移。點到 K 棒可看開高低收、均線、成交量與 FCN 狀態。
+    </div>
+  </section>
+
+  <aside class="rightPanel">
+    <h2>FCN 條件標示區</h2>
+    <div class="note">
+      目前示意：7 個月、美元計價、年化配息 12%、KO 100%、履約價 K 75%、敲入/下限 AKI 60%、第 1 個月後觀察、Daily Memory KO。正式對客戶說明時，請以商品 termsheet 為準。
+    </div>
+
+    <div class="inputRow">
+      <input id="fcnInitialInput" type="number" step="0.01" placeholder="可輸入 FCN 初始價，例如 300" />
+      <button id="applyFcn">套用</button>
+    </div>
+
+    <div class="fcnBox">
+      <div class="metric">
+        <div class="label">FCN 初始價 S0</div>
+        <div class="value" id="fcnInitial">--</div>
+      </div>
+      <div class="metric">
+        <div class="label">年化配息 / 月配息</div>
+        <div class="value" id="fcnCoupon">12% / 1%</div>
+      </div>
+      <div class="metric ko">
+        <div class="label">KO 提前出場價 100%</div>
+        <div class="value" id="fcnKO">--</div>
+      </div>
+      <div class="metric strike">
+        <div class="label">履約價 K 75%</div>
+        <div class="value" id="fcnK">--</div>
+      </div>
+      <div class="metric aki">
+        <div class="label">敲入 / 下限 AKI 60%</div>
+        <div class="value" id="fcnAKI">--</div>
+      </div>
+      <div class="metric">
+        <div class="label">7 個月滿期配息示意</div>
+        <div class="value" id="fcnTotalCoupon">約 7%</div>
+      </div>
+    </div>
+  </aside>
+
+  <div class="loading" id="loading">正在建立 TSM 3D K 線模型...</div>
+  <div id="tooltip"></div>
+
+  <div class="footnote">
+    資料說明：本頁會優先嘗試讀取 Yahoo Finance chart API 的 TSM 日 K 資料；若瀏覽器或網路阻擋，會自動切換內建示範資料。本頁僅供視覺化與教學展示，不構成投資建議或商品銷售文件。
+  </div>
+
+  <script type="module">
+    import * as THREE from "three";
+    import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+
+    const container = document.getElementById("stage");
+    const loading = document.getElementById("loading");
+    const tooltip = document.getElementById("tooltip");
+
+    const sourceBadge = document.getElementById("sourceBadge");
+    const lastPriceEl = document.getElementById("lastPrice");
+    const rangeHighEl = document.getElementById("rangeHigh");
+    const rangeLowEl = document.getElementById("rangeLow");
+
+    const fcnInitialEl = document.getElementById("fcnInitial");
+    const fcnKOEl = document.getElementById("fcnKO");
+    const fcnKEl = document.getElementById("fcnK");
+    const fcnAKIEl = document.getElementById("fcnAKI");
+    const fcnInitialInput = document.getElementById("fcnInitialInput");
+
+    const FCN = {
+      tenorMonths: 7,
+      couponAnnual: 0.12,
+      koPct: 1.00,
+      strikePct: 0.75,
+      akiPct: 0.60,
+      customInitial: null
+    };
+
+    let currentData = [];
+    let currentSource = "";
+    let currentRange = "6mo";
+
+    const scene = new THREE.Scene();
+    scene.fog = new THREE.Fog(0x080d1a, 76, 190);
+
+    const camera = new THREE.PerspectiveCamera(52, window.innerWidth / window.innerHeight, 0.1, 1400);
+    camera.position.set(0, 36, 74);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    container.appendChild(renderer.domElement);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.075;
+    controls.enableZoom = true;
+    controls.enablePan = true;
+    controls.minDistance = 16;
+    controls.maxDistance = 190;
+    controls.target.set(0, 18, 0);
+
+    const raycaster = new THREE.Raycaster();
+    const pointer = new THREE.Vector2();
+    const interactiveMeshes = [];
+
+    const root = new THREE.Group();
+    scene.add(root);
+
+    scene.add(new THREE.AmbientLight(0xffffff, 1.28));
+    const keyLight = new THREE.DirectionalLight(0xffffff, 2.45);
+    keyLight.position.set(30, 52, 38);
+    scene.add(keyLight);
+    const rimLight = new THREE.DirectionalLight(0x7aa2ff, 1.25);
+    rimLight.position.set(-38, 20, -34);
+    scene.add(rimLight);
+
+    const grid = new THREE.GridHelper(120, 48, 0x39506f, 0x18233a);
+    scene.add(grid);
+
+    const colors = {
+      up: 0xff4d4d,
+      down: 0x00d084,
+      ma5: 0x36d1ff,
+      ma20: 0xffd166,
+      ma60: 0xb388ff,
+      volume: 0xffffff,
+      vma: 0xd7e3ff,
+      ko: 0xff5f7e,
+      strike: 0xff9f1c,
+      aki: 0x4cc9f0
+    };
+
+    function formatUSD(x) {
+      if (!Number.isFinite(x)) return "--";
+      return "US$ " + x.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+
+    function formatVolume(x) {
+      if (!Number.isFinite(x)) return "--";
+      if (x >= 1_000_000_000) return (x / 1_000_000_000).toFixed(2) + "B";
+      if (x >= 1_000_000) return (x / 1_000_000).toFixed(2) + "M";
+      if (x >= 1_000) return (x / 1_000).toFixed(1) + "K";
+      return x.toLocaleString("en-US");
+    }
+
+    function formatDate(ts) {
+      const d = new Date(ts * 1000);
+      return d.toLocaleDateString("zh-TW", { year: "numeric", month: "2-digit", day: "2-digit" });
+    }
+
+    async function fetchYahoo(range = "6mo") {
+      const url = `https://query1.finance.yahoo.com/v8/finance/chart/TSM?range=${range}&interval=1d&includePrePost=false&events=history`;
+      const res = await fetch(url, { cache: "no-store" });
+      if (!res.ok) throw new Error("Yahoo Finance API 無法讀取");
+      const json = await res.json();
+      const result = json?.chart?.result?.[0];
+      if (!result) throw new Error("資料格式不完整");
+
+      const timestamps = result.timestamp || [];
+      const q = result.indicators?.quote?.[0] || {};
+      const rows = timestamps.map((t, i) => ({
+        time: t,
+        date: formatDate(t),
+        open: q.open?.[i],
+        high: q.high?.[i],
+        low: q.low?.[i],
+        close: q.close?.[i],
+        volume: q.volume?.[i]
+      })).filter(d => Number.isFinite(d.open) && Number.isFinite(d.high) && Number.isFinite(d.low) && Number.isFinite(d.close));
+      if (rows.length < 10) throw new Error("有效資料太少");
+      return rows;
+    }
+
+    function fallbackData(count = 120) {
+      const rows = [];
+      const start = new Date();
+      start.setDate(start.getDate() - Math.round(count * 1.55));
+      let price = 235;
+      for (let i = 0; i < count; i++) {
+        const date = new Date(start);
+        date.setDate(start.getDate() + i);
+        const trend = 0.55 + Math.sin(i / 10) * 1.2 + Math.cos(i / 21) * 0.85;
+        const noise = (Math.sin(i * 2.73) + Math.cos(i * 1.23)) * 1.55;
+        const open = price + noise;
+        const close = Math.max(40, open + trend + Math.sin(i / 4.4) * 2.35);
+        const high = Math.max(open, close) + 2.4 + Math.abs(Math.sin(i * 1.77)) * 4.8;
+        const low = Math.min(open, close) - 2.2 - Math.abs(Math.cos(i * 1.29)) * 4.35;
+        const volume = Math.round(8_500_000 + Math.abs(Math.sin(i / 5.2)) * 24_000_000 + Math.abs(Math.cos(i / 11)) * 7_000_000);
+        rows.push({ time: Math.floor(date.getTime() / 1000), date: date.toLocaleDateString("zh-TW"), open, high, low, close, volume });
+        price = close;
+      }
+      return rows;
+    }
+
+    function addIndicators(data) {
+      const periods = [5, 20, 60];
+      for (const p of periods) {
+        for (let i = 0; i < data.length; i++) {
+          if (i < p - 1) {
+            data[i][`ma${p}`] = null;
+            continue;
+          }
+          const slice = data.slice(i - p + 1, i + 1);
+          data[i][`ma${p}`] = slice.reduce((sum, d) => sum + d.close, 0) / p;
+        }
+      }
+      const p = 20;
+      for (let i = 0; i < data.length; i++) {
+        if (i < p - 1) {
+          data[i].vma20 = null;
+          continue;
+        }
+        const slice = data.slice(i - p + 1, i + 1);
+        data[i].vma20 = slice.reduce((sum, d) => sum + (d.volume || 0), 0) / p;
+      }
+      return data;
+    }
+
+    function fcnInitial(data) {
+      if (Number.isFinite(FCN.customInitial) && FCN.customInitial > 0) return FCN.customInitial;
+      return data?.[0]?.close || data?.[data.length - 1]?.close || 0;
+    }
+
+    function fcnLevels(data) {
+      const s0 = fcnInitial(data);
+      return {
+        s0,
+        ko: s0 * FCN.koPct,
+        strike: s0 * FCN.strikePct,
+        aki: s0 * FCN.akiPct,
+        couponMonthly: FCN.couponAnnual / 12,
+        totalCoupon: FCN.couponAnnual * FCN.tenorMonths / 12
+      };
+    }
+
+    function disposeObject(obj) {
+      obj.traverse?.((child) => {
+        if (child.geometry) child.geometry.dispose();
+        if (child.material) {
+          if (Array.isArray(child.material)) child.material.forEach(m => m.dispose());
+          else child.material.dispose();
+        }
+      });
+    }
+
+    function makeLabel(text, position, size = 1.0, opacity = 0.84, color = "#ffffff", bg = "rgba(5,9,18,.54)") {
+      const canvas = document.createElement("canvas");
+      canvas.width = 768;
+      canvas.height = 160;
+      const ctx = canvas.getContext("2d");
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      const w = canvas.width - 26;
+      const h = 100;
+      const x = 13;
+      const y = 30;
+      const r = 28;
+      ctx.beginPath();
+      ctx.moveTo(x + r, y);
+      ctx.arcTo(x + w, y, x + w, y + h, r);
+      ctx.arcTo(x + w, y + h, x, y + h, r);
+      ctx.arcTo(x, y + h, x, y, r);
+      ctx.arcTo(x, y, x + w, y, r);
+      ctx.closePath();
+      ctx.fillStyle = bg;
+      ctx.fill();
+      ctx.strokeStyle = "rgba(255,255,255,.18)";
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      ctx.font = "760 42px -apple-system, BlinkMacSystemFont, Segoe UI, Noto Sans TC, sans-serif";
+      ctx.fillStyle = color;
+      ctx.globalAlpha = opacity;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(text, canvas.width / 2, canvas.height / 2);
+      ctx.globalAlpha = 1;
+
+      const texture = new THREE.CanvasTexture(canvas);
+      texture.colorSpace = THREE.SRGBColorSpace;
+      const material = new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false });
+      const sprite = new THREE.Sprite(material);
+      sprite.position.copy(position);
+      sprite.scale.set(13.8 * size, 2.9 * size, 1);
+      root.add(sprite);
+      return sprite;
+    }
+
+    function makeLine(points, color, opacity = .95) {
+      const geometry = new THREE.BufferGeometry().setFromPoints(points);
+      const material = new THREE.LineBasicMaterial({ color, transparent: true, opacity });
+      const line = new THREE.Line(geometry, material);
+      root.add(line);
+      return line;
+    }
+
+    function makeDashedLevel(startX, xEnd, y, z, color, label, price) {
+      const material = new THREE.LineDashedMaterial({ color, transparent: true, opacity: .92, dashSize: 1.15, gapSize: .55 });
+      const geometry = new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(startX - 2, y, z),
+        new THREE.Vector3(xEnd + 3.5, y, z)
+      ]);
+      const line = new THREE.Line(geometry, material);
+      line.computeLineDistances();
+      root.add(line);
+
+      const planeGeo = new THREE.PlaneGeometry((xEnd - startX) + 5.5, .10);
+      const planeMat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: .24, side: THREE.DoubleSide, depthWrite: false });
+      const plane = new THREE.Mesh(planeGeo, planeMat);
+      plane.position.set((startX + xEnd) / 2 + .75, y, z + .01);
+      plane.rotation.x = Math.PI / 2;
+      root.add(plane);
+
+      makeLabel(`${label} ${formatUSD(price)}`, new THREE.Vector3(xEnd + 9.4, y, z), .86, .92, `#${color.toString(16).padStart(6, "0")}`);
+    }
+
+    function addAxisAndLabels(data, priceToY, startX, spacing, minPrice, maxPrice, xEnd) {
+      makeLine([new THREE.Vector3(startX - 2, 0, -2.3), new THREE.Vector3(startX - 2, priceToY(maxPrice) + 2.6, -2.3)], 0xffffff, .26);
+      makeLine([new THREE.Vector3(startX - 2, 0, -2.3), new THREE.Vector3(xEnd + 2, 0, -2.3)], 0xffffff, .26);
+
+      for (let i = 0; i <= 5; i++) {
+        const p = minPrice + (maxPrice - minPrice) * (i / 5);
+        const y = priceToY(p);
+        makeLine([new THREE.Vector3(startX - 1.5, y, -2.8), new THREE.Vector3(xEnd + 1.5, y, -2.8)], 0xffffff, .115);
+        makeLabel(formatUSD(p), new THREE.Vector3(startX - 8.0, y, -2.8), .58, .64);
+      }
+
+      makeLabel(data[0].date, new THREE.Vector3(startX, -1.45, -2.4), .55, .60);
+      makeLabel(data[data.length - 1].date, new THREE.Vector3(xEnd, -1.45, -2.4), .55, .60);
+      makeLabel("TSM ADR：價格軸 Y｜時間軸 X｜成交量在前排", new THREE.Vector3((startX + xEnd) / 2, priceToY(maxPrice) + 5.2, -1.3), 1.22, .88);
+    }
+
+    function renderMA(data, period, color, priceToY, startX, spacing, z, labelOffsetY = 0) {
+      const points = [];
+      for (let i = 0; i < data.length; i++) {
+        const v = data[i][`ma${period}`];
+        if (!Number.isFinite(v)) continue;
+        points.push(new THREE.Vector3(startX + i * spacing, priceToY(v), z));
+      }
+      if (points.length <= 1) return;
+      makeLine(points, color, .98);
+      const latestPoint = points[points.length - 1];
+      const latestVal = data.slice().reverse().find(d => Number.isFinite(d[`ma${period}`]))?.[`ma${period}`];
+      makeLabel(`MA${period} ${formatUSD(latestVal)}`, new THREE.Vector3(latestPoint.x + 7.0, latestPoint.y + labelOffsetY, z), .72, .92, `#${color.toString(16).padStart(6, "0")}`);
+    }
+
+    function updateFcnPanel(data) {
+      const lv = fcnLevels(data);
+      fcnInitialEl.textContent = formatUSD(lv.s0);
+      fcnKOEl.textContent = formatUSD(lv.ko);
+      fcnKEl.textContent = formatUSD(lv.strike);
+      fcnAKIEl.textContent = formatUSD(lv.aki);
+      document.getElementById("fcnCoupon").textContent = `${(FCN.couponAnnual * 100).toFixed(0)}% / ${(lv.couponMonthly * 100).toFixed(2)}%`;
+      document.getElementById("fcnTotalCoupon").textContent = `約 ${(lv.totalCoupon * 100).toFixed(2)}%`;
+    }
+
+    function fcnStatus(close, lv) {
+      if (!Number.isFinite(close)) return "--";
+      if (close >= lv.ko) return "高於 KO 100%：若逢觀察日，可能提前出場";
+      if (close <= lv.aki) return "低於 AKI 60%：進入敲入/下限風險區";
+      if (close <= lv.strike) return "低於履約價 K 75%：滿期需特別留意接股/現金結算風險";
+      return "介於 K 與 KO 之間：尚未達 KO，仍高於履約價";
+    }
+
+    function renderCandles(data, sourceText) {
+      while (root.children.length) disposeObject(root.children.pop());
+      interactiveMeshes.length = 0;
+      data = addIndicators(data);
+      currentData = data;
+      currentSource = sourceText;
+      updateFcnPanel(data);
+      const lv = fcnLevels(data);
+
+      const rawMin = Math.min(...data.map(d => d.low), lv.aki * .96, lv.strike * .965);
+      const rawMax = Math.max(...data.map(d => d.high), lv.ko * 1.045);
+      const padding = Math.max((rawMax - rawMin) * 0.08, 4);
+      const minPrice = rawMin - padding;
+      const maxPrice = rawMax + padding;
+      const priceRange = Math.max(maxPrice - minPrice, 1);
+      const yScale = 38;
+      const priceToY = (price) => ((price - minPrice) / priceRange) * yScale + 3.4;
+
+      const spacing = Math.min(1.22, Math.max(0.42, 76 / data.length));
+      const candleWidth = Math.max(0.22, spacing * 0.57);
+      const candleDepth = Math.max(0.18, candleWidth * 0.78);
+      const startX = -((data.length - 1) * spacing) / 2;
+      const xEnd = startX + (data.length - 1) * spacing;
+
+      const upMat = new THREE.MeshStandardMaterial({ color: colors.up, metalness: 0.18, roughness: 0.27, emissive: 0x240000, emissiveIntensity: 0.16 });
+      const downMat = new THREE.MeshStandardMaterial({ color: colors.down, metalness: 0.14, roughness: 0.32, emissive: 0x002816, emissiveIntensity: 0.13 });
+      const volUpMat = new THREE.MeshStandardMaterial({ color: colors.up, transparent: true, opacity: .32, roughness: .45 });
+      const volDownMat = new THREE.MeshStandardMaterial({ color: colors.down, transparent: true, opacity: .32, roughness: .45 });
+
+      const volumeMax = Math.max(...data.map(d => d.volume || 0), 1);
+      const volumeTopPoints = [];
+      const volumeMaPoints = [];
+
+      data.forEach((d, i) => {
+        const x = startX + i * spacing;
+        const openY = priceToY(d.open);
+        const closeY = priceToY(d.close);
+        const highY = priceToY(d.high);
+        const lowY = priceToY(d.low);
+        const isUp = d.close >= d.open;
+        const mat = isUp ? upMat : downMat;
+
+        const bodyHeight = Math.max(Math.abs(closeY - openY), 0.16);
+        const body = new THREE.Mesh(new THREE.BoxGeometry(candleWidth, bodyHeight, candleDepth), mat);
+        body.position.set(x, (openY + closeY) / 2, 0);
+        body.userData = { candle: d, isUp };
+        root.add(body);
+        interactiveMeshes.push(body);
+
+        const wickHeight = Math.max(highY - lowY, 0.13);
+        const wick = new THREE.Mesh(new THREE.CylinderGeometry(Math.max(0.022, candleWidth * .07), Math.max(0.022, candleWidth * .07), wickHeight, 10), mat);
+        wick.position.set(x, (highY + lowY) / 2, 0);
+        wick.userData = { candle: d, isUp };
+        root.add(wick);
+        interactiveMeshes.push(wick);
+
+        const volHeight = ((d.volume || 0) / volumeMax) * 5.8 + .14;
+        const vol = new THREE.Mesh(new THREE.BoxGeometry(candleWidth * .80, volHeight, candleDepth * .85), isUp ? volUpMat : volDownMat);
+        vol.position.set(x, volHeight / 2, 4.85);
+        vol.userData = { candle: d, isUp, volumeBar: true };
+        root.add(vol);
+        interactiveMeshes.push(vol);
+        volumeTopPoints.push(new THREE.Vector3(x, volHeight, 4.85));
+
+        if (Number.isFinite(d.vma20)) {
+          const vmaHeight = (d.vma20 / volumeMax) * 5.8 + .14;
+          volumeMaPoints.push(new THREE.Vector3(x, vmaHeight, 5.55));
+        }
+      });
+
+      renderMA(data, 5, colors.ma5, priceToY, startX, spacing, -1.25, 0.9);
+      renderMA(data, 20, colors.ma20, priceToY, startX, spacing, -1.45, 0);
+      renderMA(data, 60, colors.ma60, priceToY, startX, spacing, -1.65, -0.9);
+
+      if (volumeMaPoints.length > 1) {
+        makeLine(volumeMaPoints, colors.vma, .92);
+        const p = volumeMaPoints[volumeMaPoints.length - 1];
+        makeLabel("20日均量", new THREE.Vector3(p.x + 6.5, p.y + .55, 5.55), .64, .88, "#d7e3ff");
+      }
+
+      makeLabel("成交量 Volume：柱越高代表當日交易量越大", new THREE.Vector3((startX + xEnd) / 2, 7.2, 6.0), .83, .82, "#ffffff");
+
+      addAxisAndLabels(data, priceToY, startX, spacing, minPrice, maxPrice, xEnd);
+      makeDashedLevel(startX, xEnd, priceToY(lv.ko), -3.85, colors.ko, "FCN KO 100%", lv.ko);
+      makeDashedLevel(startX, xEnd, priceToY(lv.strike), -4.10, colors.strike, "履約價 K 75%", lv.strike);
+      makeDashedLevel(startX, xEnd, priceToY(lv.aki), -4.35, colors.aki, "敲入/下限 AKI 60%", lv.aki);
+      makeLabel("FCN：年化12%｜7個月｜第1個月後觀察｜Daily Memory KO", new THREE.Vector3((startX + xEnd) / 2, priceToY(maxPrice) + 1.8, -4.0), .92, .84, "#ffd166");
+
+      const latest = data[data.length - 1];
+      sourceBadge.textContent = sourceText;
+      lastPriceEl.textContent = formatUSD(latest.close);
+      rangeHighEl.textContent = formatUSD(Math.max(...data.map(d => d.high)));
+      rangeLowEl.textContent = formatUSD(Math.min(...data.map(d => d.low)));
+      loading.style.display = "none";
+      controls.target.set(0, priceToY((minPrice + maxPrice) / 2), 0);
+      controls.update();
+    }
+
+    async function loadRange(range) {
+      currentRange = range;
+      loading.style.display = "grid";
+      sourceBadge.textContent = "讀取中";
+      try {
+        const data = await fetchYahoo(range);
+        renderCandles(data, "Yahoo 連線");
+      } catch (err) {
+        console.warn(err);
+        const fallbackCounts = { "1mo": 24, "3mo": 64, "6mo": 110, "1y": 190 };
+        renderCandles(fallbackData(fallbackCounts[range] || 110), "示範資料");
+      }
+    }
+
+    function resetCamera() {
+      camera.position.set(0, 36, 74);
+      controls.target.set(0, 18, 0);
+      controls.update();
+    }
+
+    document.querySelectorAll("button[data-range]").forEach(btn => {
+      btn.addEventListener("click", () => {
+        document.querySelectorAll("button[data-range]").forEach(b => b.classList.remove("active"));
+        btn.classList.add("active");
+        loadRange(btn.dataset.range);
+      });
+    });
+
+    document.getElementById("resetView").addEventListener("click", resetCamera);
+    document.getElementById("applyFcn").addEventListener("click", () => {
+      const v = Number(fcnInitialInput.value);
+      FCN.customInitial = Number.isFinite(v) && v > 0 ? v : null;
+      if (currentData.length) renderCandles(currentData, currentSource || "目前資料");
+    });
+
+    function onPointerMove(event) {
+      const rect = renderer.domElement.getBoundingClientRect();
+      pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+      pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+      raycaster.setFromCamera(pointer, camera);
+      const hit = raycaster.intersectObjects(interactiveMeshes, false)[0];
+      if (!hit?.object?.userData?.candle) {
+        tooltip.style.display = "none";
+        return;
+      }
+      const d = hit.object.userData.candle;
+      const up = hit.object.userData.isUp;
+      const lv = fcnLevels(currentData);
+      tooltip.style.display = "block";
+      tooltip.style.left = Math.min(window.innerWidth - 345, event.clientX + 16) + "px";
+      tooltip.style.top = Math.min(window.innerHeight - 280, event.clientY + 16) + "px";
+      tooltip.innerHTML = `
+        <b>${d.date}｜${up ? "上漲紅 K" : "下跌綠 K"}</b><br>
+        開盤：${formatUSD(d.open)}｜最高：${formatUSD(d.high)}<br>
+        最低：${formatUSD(d.low)}｜收盤：${formatUSD(d.close)}<br>
+        MA5：${formatUSD(d.ma5)}｜MA20：${formatUSD(d.ma20)}｜MA60：${formatUSD(d.ma60)}<br>
+        成交量：${formatVolume(d.volume)}｜20日均量：${formatVolume(d.vma20)}<br>
+        <hr style="border:0;border-top:1px solid rgba(255,255,255,.13);margin:7px 0">
+        FCN 狀態：${fcnStatus(d.close, lv)}<br>
+        KO：${formatUSD(lv.ko)}｜K：${formatUSD(lv.strike)}｜AKI：${formatUSD(lv.aki)}
+      `;
+    }
+
+    function onPointerLeave() { tooltip.style.display = "none"; }
+    renderer.domElement.addEventListener("pointermove", onPointerMove);
+    renderer.domElement.addEventListener("pointerleave", onPointerLeave);
+
+    window.addEventListener("resize", () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    });
+
+    function animate() {
+      requestAnimationFrame(animate);
+      controls.update();
+      root.rotation.y += 0.00035;
+      renderer.render(scene, camera);
+    }
+
+    loadRange("6mo");
+    animate();
+  </script>
+</body>
+</html>
