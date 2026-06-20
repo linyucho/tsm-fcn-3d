@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>台積電 ADR｜FCN / ELN 條件圖 V14</title>
+  <title>台積電 ADR｜FCN / ELN 條件圖 V15</title>
   <meta name="description" content="台積電 ADR FCN/ELN 條件圖，預設平面K線圖，支援3D切換、手機點選單根K棒與FCN條件更新。" />
   <style>
     :root {
@@ -417,10 +417,10 @@
       }
       function smallTag(x,y,text,color){
         ctx.save();
-        ctx.font=(mobile?"900 9px":"900 12px")+" 'Noto Sans TC', sans-serif";
-        const w=Math.min(mobile?46:58,ctx.measureText(text).width+12), h=mobile?16:20;
-        rr(ctx,x,y-h/2,w,h,8); ctx.fillStyle="rgba(255,255,255,.70)"; ctx.strokeStyle=color; ctx.lineWidth=1.1; ctx.fill(); ctx.stroke();
-        ctx.fillStyle=color; ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText(text,x+w/2,y,w-6); ctx.restore();
+        ctx.font=(mobile?"900 7.5px":"900 10px")+" 'Noto Sans TC', sans-serif";
+        const w=Math.min(mobile?38:48,ctx.measureText(text).width+9), h=mobile?13:16;
+        rr(ctx,x,y-h/2,w,h,6); ctx.fillStyle="rgba(255,255,255,.58)"; ctx.strokeStyle=color; ctx.lineWidth=.9; ctx.fill(); ctx.stroke();
+        ctx.fillStyle=color; ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText(text,x+w/2,y,w-4); ctx.restore();
       }
       const rightIndex=clamp(Math.floor(((visibleRight-plotX)/Math.max(plotW,1))*Math.max(totalSlots-1,1)),0,data.length-1);
       maItems.forEach(([t,key,color])=>{
@@ -431,7 +431,7 @@
         smallTag(x,y,t,color);
       });
 
-      // 條件價格標籤：V14 改成純文字，不畫外框，避免遮住 K 線。左右滑動時文字固定在目前可視窗右側。
+      // 條件價格標籤：V15 改成純文字，不畫外框，避免遮住 K 線。左右滑動時文字固定在目前可視窗右側。
       const labelH=mobile?16:20;
       const textX = clamp(visibleRight - 10, visibleLeft + axisPanelW + 72, plotX + plotW - 8);
       const conds=[
@@ -447,7 +447,7 @@
       ctx.save();
       ctx.textAlign="right";
       ctx.textBaseline="middle";
-      ctx.font=mobile?"900 10px 'Noto Sans TC', sans-serif":"900 13px 'Noto Sans TC', sans-serif";
+      ctx.font=mobile?"900 9px 'Noto Sans TC', sans-serif":"900 12px 'Noto Sans TC', sans-serif";
       sorted.forEach(c=>{
         ctx.lineWidth=3;
         ctx.strokeStyle="rgba(255,255,255,.78)";
@@ -487,7 +487,7 @@
 
     function updateSourceLine(){
       const last=displayRows[displayRows.length-1];
-      $("sourceLine").textContent = `${sourceText}｜最新收盤 ${fmtUSD(last?.close)}｜平面圖為主畫面，可左右滑動半年視窗`;
+      $("sourceLine").textContent = `${sourceText}｜最新收盤 ${fmtUSD(last?.close)}｜平面圖為主畫面，可左右滑動半年視窗；每次重整會重新讀取最新資料檔`;
     }
     function updateDetail(i){
       const d=displayRows[i]; if(!d)return;
