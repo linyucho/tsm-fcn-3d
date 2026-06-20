@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>台積電 ADR｜FCN / ELN 條件圖 V15</title>
-  <meta name="description" content="台積電 ADR FCN/ELN 條件圖，預設平面K線圖，支援3D切換、手機點選單根K棒與FCN條件更新。" />
+  <title>台積電 ADR｜FCN / ELN 條件圖 V16</title>
+  <meta name="description" content="台灣 ADR FCN/ELN 條件圖，支援台積電 TSM、日月光 ASX、中華電信 CHT 切換、平面K線圖、3D切換與FCN條件更新。" />
   <style>
     :root {
       --paper:#efe3cb;
@@ -33,6 +33,12 @@
     h1{font-family:Georgia,"Noto Serif TC",serif;font-weight:900;font-size:clamp(28px,5.6vw,44px);line-height:1.12;margin:0;color:var(--ink);letter-spacing:.3px;}
     .sub{font-weight:800;color:#5e687f;font-size:clamp(12px,2.7vw,16px);line-height:1.55;margin-top:6px;}
     .modeNotice{display:none;margin:7px auto 0;padding:7px 10px;width:max-content;max-width:100%;border-radius:999px;background:rgba(255,255,255,.55);border:1px solid rgba(30,40,60,.12);font-size:12px;color:#5b657a;font-weight:800;}
+
+    .symbolBar{display:flex;gap:7px;justify-content:center;align-items:center;flex-wrap:wrap;margin:9px auto 0;max-width:100%;}
+    .symbolBtn{font-size:12px;padding:7px 10px;border-radius:999px;background:rgba(255,255,255,.60);color:#17233c;border:1px solid rgba(31,44,65,.16);font-weight:950;box-shadow:none;}
+    .symbolBtn.active{background:#17233c;color:white;border-color:#17233c;}
+    body.three-mode .symbolBtn{background:rgba(255,255,255,.12);color:white;border-color:rgba(255,255,255,.22)}
+    body.three-mode .symbolBtn.active{background:white;color:#17233c;border-color:white}
     .chartShell{width:100%;background:rgba(255,255,255,.30);border:1px solid rgba(49,62,75,.20);border-radius:18px;padding:8px;box-shadow:var(--shadow);overflow:hidden;}
     .flatScroll{width:100%;overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain;scrollbar-width:thin;border-radius:12px;background:var(--paper2);}
     #flatCanvas{display:block;width:100%;height:auto;border-radius:12px;background:var(--paper2);touch-action:pan-x;}
@@ -91,15 +97,20 @@
 <body>
   <div class="page">
     <header>
-      <h1>台積電 ADR｜FCN / ELN 條件圖</h1>
+      <h1 id="pageTitle">台積電 ADR｜FCN / ELN 條件圖</h1>
       <div class="sub" id="sourceLine">資料讀取中｜平面圖為主要檢視畫面，可切換 3D 輔助展示</div>
+      <div class="symbolBar" aria-label="切換 ADR 標的">
+        <button class="symbolBtn active" data-symbol="TSM" type="button">台積電 TSM</button>
+        <button class="symbolBtn" data-symbol="ASX" type="button">日月光 ASX</button>
+        <button class="symbolBtn" data-symbol="CHT" type="button">中華電信 CHT</button>
+      </div>
       <div class="modeNotice">手機版先顯示平面圖：一次約半年，可左右滑動；左側價格刻度會跟著畫面移動；評價日與KO觀察起始線已合併。</div>
     </header>
 
     <section id="flatView">
       <div class="chartShell" id="chartShell">
         <div class="flatScroll" id="flatScroll">
-          <canvas id="flatCanvas" aria-label="台積電ADR FCN平面條件圖"></canvas>
+          <canvas id="flatCanvas" aria-label="ADR FCN平面條件圖"></canvas>
         </div>
       </div>
       <div class="dateBar">
@@ -167,6 +178,14 @@
     let masterRows = [];
     let displayRows = [];
     let sourceText = "";
+    const INSTRUMENTS = {
+      TSM: { symbol:"TSM", file:"tsm", name:"台積電 ADR", short:"台積電", demoClose:462.12, defaultS0:434.00 },
+      ASX: { symbol:"ASX", file:"asx", name:"日月光 ADR", short:"日月光", demoClose:37.44, defaultS0:37.44 },
+      CHT: { symbol:"CHT", file:"cht", name:"中華電信 ADR", short:"中華電信", demoClose:43.53, defaultS0:43.53 }
+    };
+    const params = new URLSearchParams(location.search);
+    let currentSymbol = (params.get("symbol") || localStorage.getItem("adrSymbol") || "TSM").toUpperCase();
+    if(!INSTRUMENTS[currentSymbol]) currentSymbol = "TSM";
     let hitAreas = [];
     let selectedIndex = null;
     let viewMode = "flat";
@@ -231,18 +250,49 @@
         rows.push({time:start+i*86400,date,open:+open.toFixed(2),high:+high.toFixed(2),low:+low.toFixed(2),close:+close.toFixed(2),volume:Math.round(4800000+rand()*9000000)});
         price=close;
       }
-      const scale=462.12/rows[rows.length-1].close;
+      const scale=(INSTRUMENTS[currentSymbol]?.demoClose || 100)/rows[rows.length-1].close;
       rows.forEach(r=>{["open","high","low","close"].forEach(k=>r[k]=+(r[k]*scale).toFixed(2));});
       return rows;
     }
 
+    function currentInstrument(){ return INSTRUMENTS[currentSymbol] || INSTRUMENTS.TSM; }
+    function updateSymbolUI(){
+      const ins = currentInstrument();
+      $("pageTitle").textContent = `${ins.name}｜FCN / ELN 條件圖`;
+      document.title = `${ins.name}｜FCN / ELN 條件圖 V16`;
+      canvas.setAttribute("aria-label", `${ins.name} FCN / ELN 平面條件圖`);
+      document.querySelectorAll(".symbolBtn").forEach(btn=>btn.classList.toggle("active", btn.dataset.symbol===currentSymbol));
+    }
     async function fetchJson(url){const res=await fetch(url,{cache:"no-store"}); if(!res.ok)throw new Error(String(res.status)); return res.json();}
     async function loadRows(){
-      try{const file=await fetchJson(`data/tsm-5y.json?v=${Date.now()}`); sourceText=file.updatedAt?`自動更新 ${file.updatedAt}`:"自動更新資料"; return normalizeRows(file.rows||[]);}catch(e){}
-      try{const file=await fetchJson(`data/tsm-2y.json?v=${Date.now()}`); sourceText=file.updatedAt?`自動更新 ${file.updatedAt}`:"自動更新資料"; return normalizeRows(file.rows||[]);}catch(e){}
-      try{const file=await fetchJson(`data/tsm-1y.json?v=${Date.now()}`); sourceText=file.updatedAt?`自動更新 ${file.updatedAt}`:"自動更新資料"; return normalizeRows(file.rows||[]);}catch(e){}
-      sourceText="示範資料，請先確認 GitHub Actions 是否產生 data/tsm-5y.json 或 data/tsm-2y.json";
+      const ins = currentInstrument();
+      for (const rangeName of ["5y","2y","1y"]) {
+        try {
+          const file = await fetchJson(`data/${ins.file}-${rangeName}.json?v=${Date.now()}`);
+          sourceText = file.updatedAt ? `${ins.short} ${file.updatedAt}` : `${ins.short} 自動更新資料`;
+          return normalizeRows(file.rows || []);
+        } catch(e) {}
+      }
+      sourceText = `${ins.short} 示範資料，請先確認 GitHub Actions 是否產生 data/${ins.file}-5y.json`;
       return fallbackRows();
+    }
+    async function switchInstrument(symbol){
+      symbol = String(symbol || "TSM").toUpperCase();
+      if(!INSTRUMENTS[symbol]) return;
+      currentSymbol = symbol;
+      localStorage.setItem("adrSymbol", symbol);
+      updateSymbolUI();
+      $("sourceLine").textContent = `${currentInstrument().short} 資料讀取中...`;
+      rawRows = await loadRows();
+      const normalized = normalizeRows(rawRows);
+      const latestClose = normalized[normalized.length-1]?.close;
+      if(Number.isFinite(latestClose)){
+        FCN.initial = Math.round(latestClose*100)/100;
+        $("initialInput").value = FCN.initial.toFixed(2);
+      }
+      selectedIndex = null;
+      shouldAutoScrollLatest = true;
+      rebuildAll();
     }
 
     function levels(){
@@ -487,7 +537,7 @@
 
     function updateSourceLine(){
       const last=displayRows[displayRows.length-1];
-      $("sourceLine").textContent = `${sourceText}｜最新收盤 ${fmtUSD(last?.close)}｜平面圖為主畫面，可左右滑動半年視窗；每次重整會重新讀取最新資料檔`;
+      $("sourceLine").textContent = `${sourceText}｜${currentInstrument().symbol} 最新收盤 ${fmtUSD(last?.close)}｜平面圖為主畫面，可左右滑動半年視窗；每次重整會重新讀取最新資料檔`;
     }
     function updateDetail(i){
       const d=displayRows[i]; if(!d)return;
@@ -608,12 +658,14 @@
     flatScroll.addEventListener("scroll",()=>{ if(scrollDrawFrame) return; scrollDrawFrame=requestAnimationFrame(()=>{scrollDrawFrame=0; drawFlat();}); }, {passive:true});
     $("dateSelect").addEventListener("change",e=>selectNearestDate(e.target.value));
     $("modeToggle").addEventListener("click", async ()=>{viewMode=viewMode==="flat"?"3d":"flat";document.body.classList.toggle("three-mode",viewMode==="3d");$("modeToggle").textContent=viewMode==="3d"?"回到平面圖":"切換 3D 圖";if(viewMode==="3d"){try{await initThree();setTimeout(()=>{resizeThree();rebuildThree();},80);}catch(err){alert("3D 模組載入失敗，平面圖仍可使用。請確認網路可連到 three.js CDN。");viewMode="flat";document.body.classList.remove("three-mode");$("modeToggle").textContent="切換 3D 圖";}}else{resizeCanvas();}});
+    document.querySelectorAll(".symbolBtn").forEach(btn=>btn.addEventListener("click",()=>switchInstrument(btn.dataset.symbol)));
     $("fcnToggle").addEventListener("click",()=>$("fcnDrawer").classList.toggle("open"));
     $("closeFcn").addEventListener("click",()=>$("fcnDrawer").classList.remove("open"));
     $("applyBtn").addEventListener("click",()=>{readFcn();selectedIndex=null;drawFlat();rebuildThree();$("fcnDrawer").classList.remove("open");});
     $("resetBtn").addEventListener("click",()=>{selectedIndex=null;drawFlat();rebuildThree();});
     window.addEventListener("resize",()=>{resizeCanvas();resizeThree();});
 
+    updateSymbolUI();
     rawRows=await loadRows();
     rebuildAll();
     requestAnimationFrame(resizeCanvas);
