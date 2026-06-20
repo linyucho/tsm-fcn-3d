@@ -3,1423 +3,467 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>台積電ADR FCN</title>
-  <meta name="description" content="台積電ADR FCN 3D/平面切換互動頁，支援手機點選單根K棒顯示開高低收，並可輸入FCN條件自動更新KO、履約價與AKI/EKI標示。" />
+  <title>台積電 ADR｜FCN / ELN 條件圖</title>
+  <meta name="description" content="台積電 ADR FCN/ELN 條件圖，預設平面K線圖，支援3D切換、手機點選單根K棒與FCN條件更新。" />
   <style>
     :root {
-      --bg: #080d1a;
-      --panel: rgba(8, 14, 30, .76);
-      --panel-strong: rgba(7, 11, 22, .90);
-      --panel2: rgba(255,255,255,.085);
-      --line: rgba(255,255,255,.14);
-      --text: rgba(255,255,255,.94);
-      --muted: rgba(255,255,255,.64);
-      --red: #ff4d4d;
-      --green: #00d084;
-      --month: #ffd166;
-      --quarter: #b388ff;
-      --half: #ff8fab;
-      --year: #8ecae6;
-      --ko: #ff5f7e;
-      --strike: #ff9f1c;
-      --barrier: #4cc9f0;
+      --paper:#efe3cb;
+      --paper2:#f7edd8;
+      --ink:#17233c;
+      --muted:#687187;
+      --line:#cfc5ad;
+      --green:#2e8b57;
+      --red:#b33b36;
+      --month:#2c7fb8;
+      --quarter:#7a51b8;
+      --half:#d08a2e;
+      --year:#4a7c59;
+      --ko:#8e2530;
+      --strike:#227da0;
+      --barrier:#2d9ec0;
+      --navy:#14223a;
+      --panel:rgba(255,255,255,.68);
+      --shadow:0 14px 42px rgba(54,43,20,.14);
     }
-
-    * { box-sizing: border-box; }
-    html, body {
-      width: 100%; height: 100%; margin: 0; overflow: hidden;
-      background:
-        radial-gradient(circle at 16% 18%, rgba(54, 209, 255, .18), transparent 30%),
-        radial-gradient(circle at 82% 22%, rgba(255, 95, 126, .14), transparent 31%),
-        radial-gradient(circle at 62% 86%, rgba(179, 136, 255, .10), transparent 32%),
-        linear-gradient(135deg, #070b16 0%, #101733 100%);
-      color: var(--text);
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans TC", "PingFang TC", sans-serif;
-    }
-
-    #stage { position: fixed; inset: 0; width: 100vw; height: 100vh; touch-action: none; cursor: grab; }
-    #stage:active { cursor: grabbing; }
-
-    #flatCanvas {
-      position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 1; display: none;
-      background: #efe3cb; touch-action: manipulation; cursor: crosshair;
-    }
-    body.flat-mode { background: #efe3cb; }
-    body.flat-mode #stage { display: none; }
-    body.flat-mode #flatCanvas { display: block; }
-    body.flat-mode .hud, body.flat-mode .tapHint, body.flat-mode .footnote, body.flat-mode .dataWarning { display: none !important; }
-    body.flat-mode .rightPanel.open { display: block; z-index: 62; }
-    body.flat-mode #detailDrawer.open { z-index: 70; }
-    body.flat-mode .floatingTools { z-index: 80; padding: 8px; border-radius: 999px; background: rgba(239,227,203,.86); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); box-shadow: 0 10px 30px rgba(0,0,0,.16); max-width: calc(100vw - 28px); overflow-x: auto; }
-    body.flat-mode .floatingTools button { background: rgba(255,255,255,.78); color: #152033; border-color: rgba(29,38,57,.20); }
-    body.flat-mode .floatingTools button.active { background: #14223a; color: white; }
-
-    .hud, .rightPanel {
-      position: fixed; z-index: 10;
-      border: 1px solid var(--line); border-radius: 22px;
-      background: var(--panel); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
-      box-shadow: 0 18px 52px rgba(0,0,0,.32);
-    }
-    .hud {
-      left: max(16px, env(safe-area-inset-left)); top: max(14px, env(safe-area-inset-top));
-      width: min(430px, calc(100vw - 32px)); padding: 16px;
-      max-height: 66px; overflow: hidden; transition: max-height .22s ease, width .22s ease, background .22s ease;
-    }
-    .hud.open { max-height: min(76vh, 560px); overflow: auto; background: var(--panel-strong); }
-    .rightPanel {
-      right: max(16px, env(safe-area-inset-right)); top: max(14px, env(safe-area-inset-top));
-      width: min(370px, calc(100vw - 32px)); padding: 15px;
-      display: none; max-height: min(84vh, 650px); overflow: auto;
-    }
-    .rightPanel.open { display: block; }
-
-    .titleRow, .panelHead, .drawerHead { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
-    h1 { margin: 0; font-size: 21px; line-height: 1.18; letter-spacing: .4px; }
-    h2 { margin: 0 0 10px 0; font-size: 16px; letter-spacing: .2px; }
-    .subtitle { margin-top: 7px; font-size: 13px; color: var(--muted); line-height: 1.5; }
-    .badge { display: inline-flex; align-items: center; gap: 7px; padding: 7px 10px; border-radius: 999px; background: rgba(255,255,255,.08); color: var(--muted); font-size: 12px; white-space: nowrap; margin-top: 1px; }
-    .dot { width: 8px; height: 8px; border-radius: 999px; background: var(--month); box-shadow: 0 0 18px var(--month); }
-
-    .priceBox, .fcnBox { margin-top: 14px; display: grid; grid-template-columns: 1.2fr 1fr 1fr; gap: 9px; }
-    .fcnBox { grid-template-columns: 1fr 1fr; margin-top: 10px; }
-    .metric { padding: 10px 11px; border-radius: 15px; background: var(--panel2); border: 1px solid rgba(255,255,255,.08); min-width: 0; }
-    .metric .label { font-size: 11px; color: var(--muted); margin-bottom: 4px; line-height: 1.3; }
-    .metric .value { font-size: 15px; font-weight: 750; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .metric.ko { border-color: rgba(255,95,126,.35); }
-    .metric.strike { border-color: rgba(255,159,28,.36); }
-    .metric.barrier { border-color: rgba(76,201,240,.36); }
-
-    .buttons, .legend { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
-    button {
-      appearance: none; border: 1px solid rgba(255,255,255,.16); background: rgba(255,255,255,.08); color: var(--text);
-      border-radius: 999px; padding: 9px 12px; font-weight: 700; font-size: 13px; cursor: pointer;
-      transition: transform .15s ease, background .15s ease, border-color .15s ease;
-    }
-    button:hover { transform: translateY(-1px); background: rgba(255,255,255,.13); border-color: rgba(255,255,255,.26); }
-    button.active { color: #08101f; background: rgba(255, 209, 102, .96); border-color: rgba(255, 209, 102, 1); }
-    .miniToggle { padding: 7px 10px; font-size: 12px; flex-shrink: 0; }
-    .legend { color: var(--muted); font-size: 12px; align-items: center; gap: 12px; }
-    .legend span { display: inline-flex; align-items: center; gap: 6px; }
-    .swatch { width: 18px; height: 3px; border-radius: 99px; display: inline-block; }
-    .help, .note { margin-top: 11px; padding: 11px 12px; border-radius: 15px; background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.08); color: var(--muted); font-size: 12px; line-height: 1.55; }
-
-    .inputGrid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px; }
-    .field { min-width: 0; }
-    .field.full { grid-column: 1 / -1; }
-    label { display: block; color: var(--muted); font-size: 12px; margin: 0 0 5px 3px; }
-    input, select {
-      width: 100%; border: 1px solid rgba(255,255,255,.15); background: rgba(255,255,255,.085); color: var(--text);
-      border-radius: 13px; padding: 11px 12px; outline: none; font-size: 15px;
-    }
-    select option { color: #111827; }
-    input:disabled { opacity: .42; cursor: not-allowed; }
-
-    .floatingTools { position: fixed; left: max(16px, env(safe-area-inset-left)); bottom: max(16px, env(safe-area-inset-bottom)); z-index: 14; display: flex; gap: 10px; }
-    .loading { position: fixed; inset: 0; display: grid; place-items: center; background: rgba(5, 8, 16, .72); z-index: 20; color: white; font-size: 16px; }
-    .dataWarning { position: fixed; left: 50%; transform: translateX(-50%); bottom: max(76px, env(safe-area-inset-bottom)); z-index: 12; max-width: min(720px, calc(100vw - 28px)); padding: 10px 13px; border-radius: 14px; background: rgba(255, 159, 28, .16); border: 1px solid rgba(255, 209, 102, .35); color: rgba(255,255,255,.88); font-size: 12px; line-height: 1.45; display: none; }
-    .tapHint { position: fixed; right: max(14px, env(safe-area-inset-right)); bottom: max(14px, env(safe-area-inset-bottom)); z-index: 9; padding: 10px 12px; border-radius: 999px; background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.12); color: var(--muted); font-size: 12px; }
-    .footnote { position: fixed; right: max(14px, env(safe-area-inset-right)); bottom: max(18px, env(safe-area-inset-bottom)); z-index: 8; width: min(520px, calc(100vw - 28px)); color: rgba(255,255,255,.40); font-size: 11px; line-height: 1.45; text-align: right; pointer-events: none; }
-
-    #tooltip { position: fixed; z-index: 30; pointer-events: none; display: none; min-width: 275px; max-width: 340px; padding: 12px 13px; border-radius: 16px; border: 1px solid rgba(255,255,255,.14); background: rgba(6,10,20,.92); box-shadow: 0 16px 48px rgba(0,0,0,.35); color: var(--text); font-size: 12px; line-height: 1.55; }
-    #detailDrawer { position: fixed; left: 50%; transform: translateX(-50%) translateY(130%); bottom: max(14px, env(safe-area-inset-bottom)); width: min(820px, calc(100vw - 28px)); max-height: min(56vh, 450px); overflow: auto; z-index: 25; padding: 15px; border-radius: 22px; border: 1px solid rgba(255,255,255,.14); background: rgba(6,10,20,.92); box-shadow: 0 24px 80px rgba(0,0,0,.46); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); transition: transform .22s ease; }
-    #detailDrawer.open { transform: translateX(-50%) translateY(0); }
-    .drawerTitle { font-weight: 850; font-size: 17px; }
-    .drawerSub { color: var(--muted); font-size: 12px; margin-top: 3px; }
-    .detailGrid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 9px; margin-top: 12px; }
-    .detailItem { padding: 10px 11px; border-radius: 15px; background: rgba(255,255,255,.075); border: 1px solid rgba(255,255,255,.08); }
-    .detailItem.big { grid-column: span 4; }
-    .detailItem .k { color: var(--muted); font-size: 12px; margin-bottom: 4px; }
-    .detailItem .v { font-weight: 800; font-size: 15px; }
-    .detailStatus { color: rgba(255,255,255,.84); line-height: 1.7; font-size: 13px; }
-    .navRow { display: flex; gap: 8px; justify-content: flex-end; margin-top: 10px; }
-
-    @media (max-width: 980px) {
-      .footnote { display: none; }
-      .tapHint { right: auto; left: max(14px, env(safe-area-inset-left)); bottom: max(74px, env(safe-area-inset-bottom)); }
-      .hud { width: min(390px, calc(100vw - 32px)); }
-    }
-    @media (max-width: 760px) {
-      body.flat-mode .floatingTools { left: 50%; transform: translateX(-50%); bottom: max(12px, env(safe-area-inset-bottom)); gap: 8px; padding: 7px; max-width: calc(100vw - 18px); }
-      body.flat-mode .floatingTools button { padding: 9px 11px; font-size: 13px; white-space: nowrap; }
-      .hud { max-height: 60px; width: min(330px, calc(100vw - 32px)); }
-      .hud.open { max-height: min(62vh, 520px); }
-      .rightPanel { left: max(12px, env(safe-area-inset-left)); right: max(12px, env(safe-area-inset-right)); top: max(76px, env(safe-area-inset-top)); width: auto; max-height: min(62vh, 560px); }
-      .priceBox { grid-template-columns: 1fr; }
-      .detailGrid { grid-template-columns: 1fr 1fr; }
-      .detailItem.big { grid-column: span 2; }
-      .floatingTools { bottom: max(12px, env(safe-area-inset-bottom)); }
-      .tapHint { display: none; }
+    *{box-sizing:border-box}
+    html,body{margin:0;min-height:100%;background:var(--paper);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans TC","PingFang TC",sans-serif;}
+    body{padding: max(14px, env(safe-area-inset-top)) 10px calc(22px + env(safe-area-inset-bottom));overflow-x:hidden;}
+    .page{width:min(1280px,100%);margin:0 auto;}
+    header{text-align:center;padding:8px 4px 10px;}
+    h1{font-family:Georgia,"Noto Serif TC",serif;font-weight:900;font-size:clamp(28px,5.6vw,44px);line-height:1.12;margin:0;color:var(--ink);letter-spacing:.3px;}
+    .sub{font-weight:800;color:#5e687f;font-size:clamp(12px,2.7vw,16px);line-height:1.55;margin-top:6px;}
+    .modeNotice{display:none;margin:7px auto 0;padding:7px 10px;width:max-content;max-width:100%;border-radius:999px;background:rgba(255,255,255,.55);border:1px solid rgba(30,40,60,.12);font-size:12px;color:#5b657a;font-weight:800;}
+    .chartShell{width:100%;background:rgba(255,255,255,.30);border:1px solid rgba(49,62,75,.20);border-radius:18px;padding:8px;box-shadow:var(--shadow);overflow:hidden;}
+    #flatCanvas{display:block;width:100%;height:auto;border-radius:12px;background:var(--paper2);touch-action:manipulation;}
+    #threeView{display:none;width:100%;height:min(78vh,720px);min-height:540px;border-radius:16px;overflow:hidden;background:linear-gradient(135deg,#080d1a,#101733);box-shadow:var(--shadow);}
+    #stage{width:100%;height:100%;touch-action:none;}
+    body.three-mode #flatView{display:none}
+    body.three-mode #threeView{display:block}
+    body.three-mode{background:linear-gradient(135deg,#070b16,#101733);color:white}
+    body.three-mode header .sub,body.three-mode .modeNotice{color:rgba(255,255,255,.66)}
+    body.three-mode h1{color:white}
+    .infoCard{margin:10px 0 0;background:rgba(255,255,255,.70);border:1px solid rgba(31,44,65,.22);border-radius:16px;padding:12px 14px;box-shadow:0 8px 26px rgba(54,43,20,.10);}
+    .detailTitle{font-weight:950;font-size:16px;color:#18243d;margin-bottom:6px;}
+    .detailSub{font-weight:800;color:#5e687f;font-size:13px;line-height:1.45;}
+    .detailGrid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:10px;}
+    .detailItem{background:rgba(255,255,255,.68);border:1px solid rgba(31,44,65,.12);border-radius:12px;padding:8px 9px;min-width:0;}
+    .detailItem .k{color:#687187;font-weight:800;font-size:11px;margin-bottom:3px;}
+    .detailItem .v{font-weight:950;font-size:14px;color:#162239;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    .toolbar{display:flex;gap:9px;justify-content:center;align-items:center;flex-wrap:wrap;margin:15px auto 0;padding:9px;background:rgba(255,255,255,.55);border:1px solid rgba(31,44,65,.16);border-radius:999px;width:max-content;max-width:100%;box-shadow:0 10px 34px rgba(54,43,20,.14);position:sticky;bottom:calc(8px + env(safe-area-inset-bottom));z-index:10;backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);}
+    button{appearance:none;border:1px solid rgba(31,44,65,.18);border-radius:999px;background:rgba(255,255,255,.82);color:#14223a;font-weight:950;font-size:15px;padding:10px 16px;cursor:pointer;box-shadow:0 2px 0 rgba(0,0,0,.06);}
+    button.primary,button.active{background:var(--navy);color:white;border-color:var(--navy)}
+    button:active{transform:translateY(1px)}
+    .drawer{display:none;margin:14px 0;background:rgba(255,255,255,.78);border:1px solid rgba(31,44,65,.18);border-radius:18px;padding:14px;box-shadow:var(--shadow);}
+    .drawer.open{display:block}
+    .drawerHead{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:10px;}
+    .drawer h2{margin:0;font-size:20px;color:#17233c;font-weight:950;}
+    .formGrid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;}
+    .field{min-width:0}.field.full{grid-column:1/-1}.field.two{grid-column:span 2}
+    label{display:block;font-size:12px;color:#667085;font-weight:900;margin:0 0 5px 2px;}
+    input,select{width:100%;border:1px solid rgba(31,44,65,.18);background:rgba(255,255,255,.86);color:#14223a;border-radius:12px;padding:11px 12px;font-size:15px;font-weight:800;outline:none;}
+    .explain{font-size:13px;line-height:1.6;color:#596377;background:rgba(255,255,255,.55);border-radius:14px;padding:10px 12px;margin:10px 0;}
+    .foot{font-size:12px;color:#6b7280;line-height:1.6;text-align:center;margin:16px 0 0;}
+    .hidden{display:none!important}
+    @media (max-width:700px){
+      body{padding-left:10px;padding-right:10px;}
+      header{padding-top:5px;}
+      .chartShell{padding:5px;border-radius:13px;}
+      #flatCanvas{border-radius:9px;}
+      .sub{max-width:360px;margin-left:auto;margin-right:auto;}
+      .modeNotice{display:block;}
+      .detailGrid{grid-template-columns:repeat(2,1fr);}
+      .detailItem .v{font-size:13px;}
+      .toolbar{gap:7px;padding:7px;border-radius:26px;}
+      button{font-size:14px;padding:9px 12px;}
+      .formGrid{grid-template-columns:1fr 1fr;}
+      .field.two{grid-column:span 1;}
     }
   </style>
-
   <script type="importmap">
-    { "imports": { "three": "https://unpkg.com/three@0.165.0/build/three.module.js", "three/addons/": "https://unpkg.com/three@0.165.0/examples/jsm/" } }
+    {"imports":{"three":"https://unpkg.com/three@0.165.0/build/three.module.js","three/addons/":"https://unpkg.com/three@0.165.0/examples/jsm/"}}
   </script>
 </head>
 <body>
-  <div id="stage"></div>
-  <canvas id="flatCanvas" aria-label="平面 FCN 條件精準標示圖"></canvas>
+  <div class="page">
+    <header>
+      <h1>台積電 ADR｜FCN / ELN 條件圖</h1>
+      <div class="sub" id="sourceLine">資料讀取中｜平面圖為主要檢視畫面，可切換 3D 輔助展示</div>
+      <div class="modeNotice">手機版已重新排版：先看平面 K 線圖，按下單根 K 棒可看開高低收。</div>
+    </header>
 
-  <section class="hud" id="hudPanel">
-    <div class="titleRow">
-      <div>
-        <h1>台積電ADR FCN</h1>
-        <div class="subtitle">已標示月線、季線、半年線、年線、成交量與 FCN 價格條件。</div>
+    <section id="flatView">
+      <div class="chartShell" id="chartShell">
+        <canvas id="flatCanvas" aria-label="台積電ADR FCN平面條件圖"></canvas>
       </div>
-      <div class="badge"><i class="dot"></i><span id="sourceBadge">讀取中</span></div>
-      <button id="hudToggle" class="miniToggle" type="button">展開資訊</button>
-    </div>
+      <div class="infoCard" id="detailCard">
+        <div class="detailTitle">點選圖上的任一根 K 棒</div>
+        <div class="detailSub">會在這裡顯示日期、開盤、最高、最低、收盤、成交量、月線、季線、半年線、年線與 FCN 位置。</div>
+      </div>
+    </section>
 
-    <div class="priceBox">
-      <div class="metric"><div class="label">最新收盤 / 參考價</div><div class="value" id="lastPrice">--</div></div>
-      <div class="metric"><div class="label">區間高點</div><div class="value" id="rangeHigh">--</div></div>
-      <div class="metric"><div class="label">區間低點</div><div class="value" id="rangeLow">--</div></div>
-    </div>
+    <section id="threeView">
+      <div id="stage"></div>
+    </section>
 
-    <div class="buttons">
-      <button data-range="1mo">1M</button>
-      <button data-range="3mo">3M</button>
-      <button data-range="6mo">6M</button>
-      <button data-range="1y" class="active">1Y</button>
-      <button id="resetView">重設視角</button>
-    </div>
+    <nav class="toolbar" aria-label="主要操作">
+      <button id="modeToggle" class="primary" type="button">切換 3D 圖</button>
+      <button id="fcnToggle" type="button">FCN 條件</button>
+      <button id="resetBtn" type="button">重畫圖表</button>
+    </nav>
 
-    <div class="legend">
-      <span><i class="swatch" style="background: var(--green)"></i>上漲 K</span>
-      <span><i class="swatch" style="background: var(--red)"></i>下跌 K</span>
-      <span><i class="swatch" style="background: var(--month)"></i>月線</span>
-      <span><i class="swatch" style="background: var(--quarter)"></i>季線</span>
-      <span><i class="swatch" style="background: var(--half)"></i>半年線</span>
-      <span><i class="swatch" style="background: var(--year)"></i>年線</span>
-      <span><i class="swatch" style="background: rgba(255,255,255,.55)"></i>成交量</span>
-    </div>
+    <section class="drawer" id="fcnDrawer">
+      <div class="drawerHead">
+        <h2>FCN 條件設定</h2>
+        <button id="closeFcn" type="button">收合</button>
+      </div>
+      <div class="explain">輸入後按「套用」，平面圖與 3D 圖會一起更新。下限條件可選 AKI、EKI 或沒有；若選「沒有」，圖上不會畫下限線。</div>
+      <div class="formGrid">
+        <div class="field two"><label>FCN 初始價 S0</label><input id="initialInput" type="number" step="0.01" value="434" /></div>
+        <div class="field"><label>天期（月）</label><input id="tenorInput" type="number" step="1" min="1" value="6" /></div>
+        <div class="field"><label>年化配息（%）</label><input id="couponInput" type="number" step="0.01" min="0" value="20" /></div>
+        <div class="field"><label>KO（%）</label><input id="koInput" type="number" step="0.01" min="0" value="100" /></div>
+        <div class="field"><label>履約價 K（%）</label><input id="strikeInput" type="number" step="0.01" min="0" value="85" /></div>
+        <div class="field"><label>下限條件</label><select id="barrierTypeInput"><option value="AKI" selected>AKI</option><option value="EKI">EKI</option><option value="NONE">沒有</option></select></div>
+        <div class="field"><label>下限（%）</label><input id="barrierInput" type="number" step="0.01" min="0" value="60" /></div>
+        <div class="field"><label>第幾個月後觀察</label><input id="obsInput" type="number" step="1" min="1" value="1" /></div>
+        <div class="field two"><label>KO 型態</label><select id="koTypeInput"><option value="Daily Memory KO" selected>Daily Memory KO</option><option value="Monthly Observation KO">Monthly Observation KO</option><option value="No Memory KO">No Memory KO</option></select></div>
+        <button class="field two primary" id="applyBtn" type="button">套用並更新圖表</button>
+      </div>
+    </section>
 
-    <div class="help">電腦：滑鼠拖曳旋轉、滾輪縮放。手機：一指旋轉、雙指放大縮小。點一下單根 K 棒，底部會固定顯示開盤、最高、最低、收盤、漲跌、均線、成交量與 FCN 狀態。</div>
-  </section>
-
-  <aside class="rightPanel" id="fcnPanel">
-    <div class="panelHead"><h2>FCN 條件標示區</h2><button id="closeFcnPanel" class="miniToggle" type="button">收合</button></div>
-    <div class="note" id="fcnNote">可直接輸入 FCN 條件。按「套用」後，3D 圖中的 KO、履約價與下限條件線會立即重新計算；下限條件可選 AKI、EKI 或沒有。</div>
-
-    <div class="inputGrid">
-      <div class="field full"><label>FCN 初始價 S0，留空則用區間第一天收盤價</label><input id="fcnInitialInput" type="number" step="0.01" placeholder="例如 300" /></div>
-      <div class="field"><label>天期（月）</label><input id="fcnTenorInput" type="number" step="1" min="1" value="7" /></div>
-      <div class="field"><label>年化配息（%）</label><input id="fcnCouponInput" type="number" step="0.01" min="0" value="12" /></div>
-      <div class="field"><label>KO 提前出場（%）</label><input id="fcnKoInput" type="number" step="0.01" min="0" value="100" /></div>
-      <div class="field"><label>履約價 K（%）</label><input id="fcnStrikeInput" type="number" step="0.01" min="0" value="75" /></div>
-      <div class="field"><label>下限條件</label><select id="fcnBarrierTypeInput"><option value="AKI" selected>AKI</option><option value="EKI">EKI</option><option value="NONE">沒有</option></select></div>
-      <div class="field"><label id="barrierPctLabel">下限價格（%）</label><input id="fcnBarrierInput" type="number" step="0.01" min="0" value="60" /></div>
-      <div class="field"><label>第幾個月後觀察</label><input id="fcnObsInput" type="number" step="1" min="1" value="1" /></div>
-      <div class="field full"><label>KO 型態</label><select id="fcnMemoryInput"><option value="Daily Memory KO" selected>Daily Memory KO</option><option value="Monthly Observation KO">Monthly Observation KO</option><option value="No Memory KO">No Memory KO</option></select></div>
-      <button id="applyFcn" class="field full" type="button">套用 FCN 條件並更新 3D 圖</button>
-    </div>
-
-    <div class="fcnBox">
-      <div class="metric"><div class="label">FCN 初始價 S0</div><div class="value" id="fcnInitial">--</div></div>
-      <div class="metric"><div class="label">年化配息 / 月配息</div><div class="value" id="fcnCoupon">12% / 1%</div></div>
-      <div class="metric ko"><div class="label" id="fcnKOLabel">KO 提前出場價 100%</div><div class="value" id="fcnKO">--</div></div>
-      <div class="metric strike"><div class="label" id="fcnStrikeLabel">履約價 K 75%</div><div class="value" id="fcnK">--</div></div>
-      <div class="metric barrier"><div class="label" id="fcnBarrierLabel">AKI 60%</div><div class="value" id="fcnBarrier">--</div></div>
-      <div class="metric"><div class="label" id="couponTotalLabel">7 個月滿期配息示意</div><div class="value" id="fcnTotalCoupon">約 7%</div></div>
-    </div>
-  </aside>
-
-  <div class="floatingTools"><button id="modeToggle" type="button">切換平面圖</button><button id="openInfoPanel" type="button">資訊面板</button><button id="openFcnPanel" type="button">FCN 條件</button></div>
-  <div class="dataWarning" id="dataWarning"></div>
-  <div class="loading" id="loading">正在建立台積電ADR FCN 3D模型...</div>
-  <div id="tooltip"></div>
-  <div class="tapHint">點一下任一 K 棒，可固定顯示該日開高低收</div>
-
-  <section id="detailDrawer" aria-live="polite">
-    <div class="drawerHead"><div><div class="drawerTitle" id="drawerTitle">請點選一根 K 棒</div><div class="drawerSub" id="drawerSub">會顯示該日開高低收、均線、成交量與 FCN 狀態</div></div><button id="closeDrawer" class="miniToggle" type="button">關閉</button></div>
-    <div class="detailGrid" id="detailGrid"></div>
-    <div class="navRow"><button id="prevCandle" type="button">上一根</button><button id="nextCandle" type="button">下一根</button></div>
-  </section>
-
-  <div class="footnote">資料說明：本頁優先讀取 GitHub Actions 每日更新的台積電ADR日K資料。若尚未產生資料檔，會嘗試直接讀取公開行情資料；若仍失敗，會切換內建示範資料。本頁僅供視覺化與教學展示，不構成投資建議或商品銷售文件。</div>
+    <p class="foot">說明：此頁為客戶溝通用視覺化示意，股價資料與條件線僅供說明；正式報價、配息、敲出／敲入規則與風險仍以 termsheet 與交易確認文件為準。</p>
+  </div>
 
   <script type="module">
-    import * as THREE from "three";
-    import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+    let THREE, OrbitControls;
 
-    const $ = (id) => document.getElementById(id);
-    const container = $("stage");
-    const loading = $("loading");
-    const tooltip = $("tooltip");
-    const detailDrawer = $("detailDrawer");
-    const detailGrid = $("detailGrid");
-    const drawerTitle = $("drawerTitle");
-    const drawerSub = $("drawerSub");
-    const sourceBadge = $("sourceBadge");
-    const lastPriceEl = $("lastPrice");
-    const rangeHighEl = $("rangeHigh");
-    const rangeLowEl = $("rangeLow");
-    const dataWarning = $("dataWarning");
-    const hudPanel = $("hudPanel");
-    const hudToggle = $("hudToggle");
-    const fcnPanel = $("fcnPanel");
-    const flatCanvas = $("flatCanvas");
-    const flatCtx = flatCanvas.getContext("2d");
-    let viewMode = "3d";
-    let flatHitAreas = [];
-    let flatPointerDown = null;
-
-    const inputs = {
-      initial: $("fcnInitialInput"), tenor: $("fcnTenorInput"), coupon: $("fcnCouponInput"), ko: $("fcnKoInput"),
-      strike: $("fcnStrikeInput"), barrierType: $("fcnBarrierTypeInput"), barrier: $("fcnBarrierInput"), obs: $("fcnObsInput"), memory: $("fcnMemoryInput")
-    };
+    const $ = id => document.getElementById(id);
+    const canvas = $("flatCanvas");
+    const ctx = canvas.getContext("2d");
+    const chartShell = $("chartShell");
+    let rawRows = [];
+    let masterRows = [];
+    let displayRows = [];
+    let sourceText = "";
+    let hitAreas = [];
+    let selectedIndex = null;
+    let viewMode = "flat";
 
     const FCN = {
-      tenorMonths: 7,
-      couponAnnual: 0.12,
+      initial: 434,
+      tenorMonths: 6,
+      couponAnnual: 0.20,
       koPct: 1.00,
-      strikePct: 0.75,
+      strikePct: 0.85,
       barrierType: "AKI",
       barrierPct: 0.60,
       observationAfterMonth: 1,
-      koType: "Daily Memory KO",
-      customInitial: null
+      koType: "Daily Memory KO"
     };
 
-    const rangeCounts = { "1mo": 22, "3mo": 66, "6mo": 132, "1y": 252 };
-    let fullData = [];
-    let currentData = [];
-    let currentSource = "";
-    let currentRange = "1y";
-    let selectedCandleIndex = -1;
-    let selectedMarker = null;
-    let pointerDownInfo = null;
+    function fmtUSD(x){return Number.isFinite(x)?"US$ "+x.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2}):"--";}
+    function fmtNum(x){return Number.isFinite(x)?x.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2}):"--";}
+    function fmtPct(x){return (x*100).toFixed(2).replace(/\.00$/,"");}
+    function fmtVol(x){if(!Number.isFinite(x))return "--"; if(x>=1e9)return (x/1e9).toFixed(2)+"B"; if(x>=1e6)return (x/1e6).toFixed(2)+"M"; if(x>=1e3)return (x/1e3).toFixed(1)+"K"; return Math.round(x).toString();}
+    function clamp(x,a,b){return Math.max(a,Math.min(b,x));}
+    function dateLabel(d){const s=String(d.date||""); const parts=s.split(/[/-]/); return parts.length>=2?`${parts[0]}-${parts[1]}`:s;}
+    function shortDate(d){return String(d.date||"").replaceAll("/","-");}
 
-    function loadSavedFcn() {
-      try {
-        const saved = JSON.parse(localStorage.getItem("tsmFncConfigV5") || "null") || JSON.parse(localStorage.getItem("tsmFncConfigV3") || "null");
-        if (!saved) return;
-        if (Number.isFinite(saved.customInitial)) FCN.customInitial = saved.customInitial;
-        if (Number.isFinite(saved.tenorMonths)) FCN.tenorMonths = saved.tenorMonths;
-        if (Number.isFinite(saved.couponAnnual)) FCN.couponAnnual = saved.couponAnnual;
-        if (Number.isFinite(saved.koPct)) FCN.koPct = saved.koPct;
-        if (Number.isFinite(saved.strikePct)) FCN.strikePct = saved.strikePct;
-        if (Number.isFinite(saved.barrierPct)) FCN.barrierPct = saved.barrierPct;
-        if (Number.isFinite(saved.akiPct)) FCN.barrierPct = saved.akiPct;
-        if (["AKI", "EKI", "NONE"].includes(saved.barrierType)) FCN.barrierType = saved.barrierType;
-        if (Number.isFinite(saved.observationAfterMonth)) FCN.observationAfterMonth = saved.observationAfterMonth;
-        if (saved.koType) FCN.koType = saved.koType;
-      } catch (e) { console.warn(e); }
+    function normalizeRows(rows){
+      return (rows||[]).map(r=>({
+        time:Number(r.time)||Date.parse(String(r.date||""))/1000,
+        date:r.date || new Date((Number(r.time)||0)*1000).toISOString().slice(0,10).replaceAll("-","/"),
+        open:Number(r.open), high:Number(r.high), low:Number(r.low), close:Number(r.close), volume:Number(r.volume)||0
+      })).filter(r=>Number.isFinite(r.open)&&Number.isFinite(r.high)&&Number.isFinite(r.low)&&Number.isFinite(r.close)).sort((a,b)=>a.time-b.time);
     }
 
-    function syncFcnInputs() {
-      inputs.initial.value = Number.isFinite(FCN.customInitial) ? FCN.customInitial.toFixed(2) : "";
-      inputs.tenor.value = FCN.tenorMonths;
-      inputs.coupon.value = pctText(FCN.couponAnnual);
-      inputs.ko.value = pctText(FCN.koPct);
-      inputs.strike.value = pctText(FCN.strikePct);
-      inputs.barrierType.value = FCN.barrierType;
-      inputs.barrier.value = pctText(FCN.barrierPct);
-      inputs.obs.value = FCN.observationAfterMonth;
-      inputs.memory.value = FCN.koType;
-      syncBarrierInputState();
-    }
-
-    function syncBarrierInputState() {
-      const type = inputs.barrierType.value;
-      const disabled = type === "NONE";
-      inputs.barrier.disabled = disabled;
-      $("barrierPctLabel").textContent = disabled ? "沒有下限條件" : `${type} 價格（%）`;
-    }
-
-    function saveFcn() { localStorage.setItem("tsmFncConfigV5", JSON.stringify(FCN)); }
-
-    loadSavedFcn();
-    syncFcnInputs();
-    inputs.barrierType.addEventListener("change", syncBarrierInputState);
-
-    const scene = new THREE.Scene();
-    scene.fog = new THREE.Fog(0x080d1a, 76, 190);
-
-    const camera = new THREE.PerspectiveCamera(52, window.innerWidth / window.innerHeight, 0.1, 1600);
-    camera.position.set(0, 36, 74);
-
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    container.appendChild(renderer.domElement);
-
-    const controls = new OrbitControls(camera, renderer.domElement);
-    controls.enableDamping = true;
-    controls.dampingFactor = 0.06;
-    controls.enableZoom = true;
-    controls.enablePan = true;
-    controls.autoRotate = false;
-    controls.minDistance = 24;
-    controls.maxDistance = 190;
-    controls.target.set(0, 18, 0);
-
-    const root = new THREE.Group();
-    scene.add(root);
-    scene.add(new THREE.AmbientLight(0xffffff, 1.55));
-    const keyLight = new THREE.DirectionalLight(0xffffff, 2.2);
-    keyLight.position.set(28, 48, 30);
-    scene.add(keyLight);
-    const rimLight = new THREE.DirectionalLight(0x8ecae6, 1.1);
-    rimLight.position.set(-36, 28, -24);
-    scene.add(rimLight);
-
-    const raycaster = new THREE.Raycaster();
-    const pointer = new THREE.Vector2();
-    let interactiveMeshes = [];
-
-    const colors = {
-      green: 0x00d084,
-      red: 0xff4d4d,
-      month: 0xffd166,
-      quarter: 0xb388ff,
-      half: 0xff8fab,
-      year: 0x8ecae6,
-      volume: 0xd7e3ff,
-      ko: 0xff5f7e,
-      strike: 0xff9f1c,
-      barrier: 0x4cc9f0
-    };
-
-    function pctText(x) { return (x * 100).toFixed(2).replace(/\.00$/, ""); }
-    function formatUSD(x) { if (!Number.isFinite(x)) return "--"; return "US$ " + x.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
-    function formatVolume(x) {
-      if (!Number.isFinite(x)) return "--";
-      if (x >= 1e9) return (x / 1e9).toFixed(2) + "B";
-      if (x >= 1e6) return (x / 1e6).toFixed(2) + "M";
-      if (x >= 1e3) return (x / 1e3).toFixed(1) + "K";
-      return String(Math.round(x));
-    }
-    function formatDate(ts) { return new Date(ts * 1000).toLocaleDateString("zh-TW", { year: "numeric", month: "2-digit", day: "2-digit", timeZone: "UTC" }); }
-
-    function setViewMode(mode) {
-      viewMode = mode === "flat" ? "flat" : "3d";
-      document.body.classList.toggle("flat-mode", viewMode === "flat");
-      controls.enabled = viewMode === "3d";
-      const btn = $("modeToggle");
-      btn.textContent = viewMode === "flat" ? "切換 3D 圖" : "切換平面圖";
-      btn.classList.toggle("active", viewMode === "flat");
-      if (viewMode === "flat") drawFlatChart();
-    }
-
-    function setupFlatCanvas() {
-      const ratio = Math.min(window.devicePixelRatio || 1, 2);
-      const cssW = window.innerWidth;
-      const cssH = window.innerHeight;
-      flatCanvas.width = Math.floor(cssW * ratio);
-      flatCanvas.height = Math.floor(cssH * ratio);
-      flatCanvas.style.width = cssW + "px";
-      flatCanvas.style.height = cssH + "px";
-      flatCtx.setTransform(ratio, 0, 0, ratio, 0, 0);
-    }
-
-    function flatRoundRect(ctx, x, y, w, h, r) {
-      const rr = Math.min(r, w / 2, h / 2);
-      ctx.beginPath();
-      ctx.moveTo(x + rr, y);
-      ctx.arcTo(x + w, y, x + w, y + h, rr);
-      ctx.arcTo(x + w, y + h, x, y + h, rr);
-      ctx.arcTo(x, y + h, x, y, rr);
-      ctx.arcTo(x, y, x + w, y, rr);
-      ctx.closePath();
-    }
-
-    function flatTextBox(ctx, x, y, lines, options = {}) {
-      const padX = options.padX ?? 14;
-      const padY = options.padY ?? 10;
-      const font = options.font ?? "700 15px 'Noto Sans TC', serif";
-      const lineHeight = options.lineHeight ?? 22;
-      ctx.save();
-      ctx.font = font;
-      const arr = Array.isArray(lines) ? lines : String(lines).split("\n");
-      const w = options.width ?? Math.max(...arr.map(t => ctx.measureText(t).width)) + padX * 2;
-      const h = arr.length * lineHeight + padY * 2;
-      ctx.fillStyle = options.fill ?? "rgba(255,255,255,.72)";
-      ctx.strokeStyle = options.stroke ?? "#2a8e71";
-      ctx.lineWidth = options.lineWidth ?? 1.4;
-      flatRoundRect(ctx, x, y, w, h, options.radius ?? 10);
-      ctx.fill(); ctx.stroke();
-      ctx.fillStyle = options.color ?? "#12302f";
-      ctx.textBaseline = "top";
-      arr.forEach((t, i) => ctx.fillText(t, x + padX, y + padY + i * lineHeight));
-      ctx.restore();
-      return { x, y, w, h };
-    }
-
-    function flatMapDateLabel(d) {
-      const [yy, mm] = String(d.date || "").split("/");
-      return yy && mm ? `${yy}-${mm}` : (d.date || "");
-    }
-
-
-    function drawFlatChartMobile(ctx, W, H) {
-      const data = currentData;
-      const lv = fcnLevels(data);
-      const latest = data[data.length - 1];
-      const dprSafeBottom = 110;
-
-      const marginL = 44;
-      const marginR = 14;
-      const titleH = 72;
-      const volH = 54;
-      const volGap = 7;
-      const xAxisH = 34;
-      const infoH = 72;
-      const plotX = marginL;
-      const plotY = titleH + 8;
-      const plotW = Math.max(260, W - marginL - marginR);
-      const availablePlotH = H - plotY - volGap - volH - xAxisH - infoH - dprSafeBottom - 10;
-      const plotH = Math.max(285, Math.min(480, availablePlotH));
-      const volY = plotY + plotH + volGap;
-      const infoY = volY + volH + xAxisH + 2;
-
-      ctx.clearRect(0, 0, W, H);
-      ctx.fillStyle = "#efe3cb";
-      ctx.fillRect(0, 0, W, H);
-      flatHitAreas = [];
-
-      ctx.textAlign = "center";
-      ctx.textBaseline = "alphabetic";
-      ctx.fillStyle = "#17233c";
-      ctx.font = "900 21px Georgia, 'Noto Serif TC', 'Noto Sans TC', serif";
-      ctx.fillText("台積電 ADR｜FCN / ELN 條件圖", W / 2, 28, W - 18);
-      ctx.fillStyle = "#536079";
-      ctx.font = "700 10px 'Noto Sans TC', sans-serif";
-      ctx.fillText(`自動更新資料｜最新收盤 ${formatUSD(latest.close)}｜手機版精簡標示`, W / 2, 49, W - 18);
-      ctx.fillText("建議橫向觀看完整簡報版；直式保留重點線位與可點選 K 棒", W / 2, 64, W - 18);
-
-      const futureDays = Math.max(36, Math.min(86, Math.round(FCN.tenorMonths * 12)));
-      const totalSlots = data.length + futureDays;
-      const slotToX = slot => plotX + (slot / Math.max(totalSlots - 1, 1)) * plotW;
-      const dateToX = i => slotToX(i);
-      const issueSlot = data.length - 1;
-      const obsSlot = issueSlot + Math.max(FCN.observationAfterMonth, 1) * 21;
-      const maturitySlot = issueSlot + Math.max(FCN.tenorMonths, 1) * 21;
-      const issueX = slotToX(issueSlot);
-      const obsX = slotToX(Math.min(obsSlot, totalSlots - 1));
-      const maturityX = slotToX(Math.min(maturitySlot, totalSlots - 1));
-
-      const prices = data.flatMap(d => [d.low, d.high, d.avg20, d.avg60, d.avg120, d.avg240].filter(Number.isFinite));
-      prices.push(lv.ko, lv.strike);
-      if (lv.hasBarrier) prices.push(lv.barrier);
-      let minP = Math.min(...prices), maxP = Math.max(...prices);
-      const pad = Math.max((maxP - minP) * .10, 8);
-      minP -= pad; maxP += pad;
-      const yOf = p => plotY + (maxP - p) / (maxP - minP) * plotH;
-      const clamp = (x, min, max) => Math.max(min, Math.min(max, x));
-      const koY = yOf(lv.ko);
-      const strikeY = yOf(lv.strike);
-      const barrierY = lv.hasBarrier ? yOf(lv.barrier) : null;
-
-      // 區域底色，全部限制在主圖內，避免跑版。
-      ctx.save();
-      ctx.beginPath(); ctx.rect(plotX, plotY, plotW, plotH); ctx.clip();
-      ctx.fillStyle = "#eef7e6"; ctx.fillRect(plotX, plotY, plotW, Math.max(0, koY - plotY));
-      ctx.fillStyle = "#fbf0ce"; ctx.fillRect(plotX, koY, plotW, Math.max(0, strikeY - koY));
-      ctx.fillStyle = "#e3f3f8"; ctx.fillRect(plotX, strikeY, plotW, Math.max(0, plotY + plotH - strikeY));
-      if (lv.hasBarrier) { ctx.fillStyle = "rgba(64,180,215,.10)"; ctx.fillRect(plotX, barrierY, plotW, plotY + plotH - barrierY); }
-      ctx.restore();
-
-      ctx.save();
-      ctx.beginPath(); ctx.rect(plotX, plotY, plotW, plotH); ctx.clip();
-      ctx.strokeStyle = "rgba(75,90,70,.20)"; ctx.lineWidth = 1;
-      for (let i = 0; i <= 4; i++) { const x = plotX + plotW * i / 4; ctx.beginPath(); ctx.moveTo(x, plotY); ctx.lineTo(x, plotY + plotH); ctx.stroke(); }
-      for (let i = 0; i <= 5; i++) { const y = plotY + plotH * i / 5; ctx.beginPath(); ctx.moveTo(plotX, y); ctx.lineTo(plotX + plotW, y); ctx.stroke(); }
-      ctx.restore();
-      ctx.strokeStyle = "rgba(46,66,58,.34)"; ctx.lineWidth = 1.2; ctx.strokeRect(plotX, plotY, plotW, plotH);
-
-      function hLine(y, color, dashed = false, width = 2) {
-        ctx.save(); ctx.strokeStyle = color; ctx.lineWidth = width; if (dashed) ctx.setLineDash([7, 5]);
-        ctx.beginPath(); ctx.moveTo(plotX, y); ctx.lineTo(plotX + plotW, y); ctx.stroke(); ctx.restore();
-      }
-      hLine(koY, "#8e2530", false, 2.1);
-      hLine(strikeY, "#227da0", true, 2.0);
-      if (lv.hasBarrier) hLine(barrierY, "#2d9ec0", true, 1.8);
-
-      // 成交量區
-      ctx.fillStyle = "rgba(255,250,235,.74)"; ctx.fillRect(plotX, volY, plotW, volH);
-      ctx.strokeStyle = "rgba(80,80,70,.16)"; ctx.strokeRect(plotX, volY, plotW, volH);
-      for (let i = 0; i <= 4; i++) { const x = plotX + plotW * i / 4; ctx.beginPath(); ctx.moveTo(x, volY); ctx.lineTo(x, volY + volH); ctx.stroke(); }
-
-      // K棒與量
-      const maxVol = Math.max(...data.map(d => d.volume || 0), 1);
-      const candleW = Math.max(1.4, Math.min(3.5, plotW / totalSlots * .78));
-      ctx.save();
-      ctx.beginPath(); ctx.rect(plotX, plotY, plotW, plotH); ctx.clip();
-      data.forEach((d, i) => {
-        const x = dateToX(i);
-        const up = d.close >= d.open;
-        const col = up ? "#2e8b57" : "#b33b36";
-        const oy = yOf(d.open), cy = yOf(d.close), hy = yOf(d.high), ly = yOf(d.low);
-        ctx.strokeStyle = col; ctx.lineWidth = Math.max(1, candleW * .24);
-        ctx.beginPath(); ctx.moveTo(x, hy); ctx.lineTo(x, ly); ctx.stroke();
-        ctx.fillStyle = col;
-        ctx.fillRect(x - candleW / 2, Math.min(oy, cy), candleW, Math.max(1.1, Math.abs(cy - oy)));
-        flatHitAreas.push({ x: x - Math.max(7, candleW * 1.6), y: plotY, w: Math.max(14, candleW * 3.2), h: plotH, index: i });
-      });
-      ctx.restore();
-      data.forEach((d, i) => {
-        const x = dateToX(i);
-        const up = d.close >= d.open;
-        ctx.fillStyle = up ? "rgba(46,139,87,.58)" : "rgba(179,59,54,.58)";
-        const vh = (d.volume || 0) / maxVol * (volH - 7);
-        ctx.fillRect(x - candleW / 2, volY + volH - vh, candleW, vh);
-      });
-
-      // 均線，只在圖內畫線，不再用大型標籤覆蓋。
-      function drawAverage(key, color) {
-        ctx.save(); ctx.beginPath(); ctx.rect(plotX, plotY, plotW, plotH); ctx.clip();
-        ctx.strokeStyle = color; ctx.lineWidth = 1.9; ctx.beginPath(); let started = false;
-        data.forEach((d, i) => {
-          const v = d[key]; if (!Number.isFinite(v)) return;
-          const x = dateToX(i), y = yOf(v);
-          if (!started) { ctx.moveTo(x, y); started = true; } else ctx.lineTo(x, y);
+    function addAverages(rows){
+      const periods = [[20,"month"],[60,"quarter"],[120,"half"],[240,"year"]];
+      rows.forEach((r,i)=>{
+        periods.forEach(([p,k])=>{
+          if(i+1>=p){
+            let sum=0; for(let j=i-p+1;j<=i;j++)sum+=rows[j].close;
+            r[k]=sum/p;
+          } else r[k]=NaN;
         });
-        if (started) ctx.stroke();
-        ctx.restore();
-      }
-      drawAverage("avg20", "#2c7fb8");
-      drawAverage("avg60", "#7a51b8");
-      drawAverage("avg120", "#d08a2e");
-      drawAverage("avg240", "#4a7c59");
-
-      // 圖例放在主圖左上，短小不遮 K 棒。
-      const legend = [["月線", "#2c7fb8"], ["季線", "#7a51b8"], ["半年線", "#d08a2e"], ["年線", "#4a7c59"]];
-      ctx.save();
-      ctx.fillStyle = "rgba(255,255,255,.68)"; ctx.strokeStyle = "rgba(30,43,62,.18)";
-      flatRoundRect(ctx, plotX + 6, plotY + 7, 70, 70, 8); ctx.fill(); ctx.stroke();
-      ctx.font = "800 10px 'Noto Sans TC', sans-serif"; ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
-      legend.forEach(([t, c], i) => { const y = plotY + 23 + i * 14; ctx.strokeStyle = c; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(plotX + 13, y - 4); ctx.lineTo(plotX + 30, y - 4); ctx.stroke(); ctx.fillStyle = "#1e2b3e"; ctx.fillText(t, plotX + 35, y - 7); });
-      ctx.restore();
-
-      // 價格軸
-      ctx.textAlign = "right"; ctx.textBaseline = "alphabetic"; ctx.font = "10px 'Noto Sans TC', sans-serif"; ctx.fillStyle = "#21324b";
-      for (let i = 0; i <= 5; i++) { const p = minP + (maxP - minP) * i / 5; ctx.fillText(p.toFixed(0), plotX - 6, yOf(p) + 4); }
-      ctx.save(); ctx.translate(18, volY + volH / 2); ctx.rotate(-Math.PI / 2); ctx.textAlign = "center"; ctx.font = "800 11px 'Noto Sans TC', sans-serif"; ctx.fillText("成交量", 0, 0); ctx.restore();
-
-      // X 軸日期：只顯示少數月份，不擠壓。
-      ctx.save(); ctx.textAlign = "center"; ctx.fillStyle = "#1d2d47"; ctx.font = "10px 'Noto Sans TC', sans-serif";
-      const monthSeen = new Set();
-      data.forEach((d, i) => {
-        const label = flatMapDateLabel(d);
-        const m = label.slice(0, 7);
-        const show = i === 0 || i === data.length - 1 || (!monthSeen.has(m) && i % 35 < 3);
-        if (show) {
-          monthSeen.add(m);
-          const x = dateToX(i);
-          ctx.save(); ctx.translate(x, volY + volH + 17); ctx.rotate(-Math.PI / 5); ctx.fillText(label, 0, 0); ctx.restore();
-        }
       });
-      ctx.restore();
-
-      // 條件標籤：全部限制在圖內，小標籤，不再用大框遮住畫面。
-      function smallTag(text, y, color, alignRight = false) {
-        ctx.save(); ctx.font = "900 11px 'Noto Sans TC', sans-serif";
-        const tw = Math.min(ctx.measureText(text).width + 14, plotW - 14);
-        const x = alignRight ? plotX + plotW - tw - 5 : plotX + 6;
-        const yy = clamp(y - 13, plotY + 6, plotY + plotH - 22);
-        ctx.fillStyle = "rgba(255,255,255,.74)"; ctx.strokeStyle = color; ctx.lineWidth = 1.2;
-        flatRoundRect(ctx, x, yy, tw, 22, 7); ctx.fill(); ctx.stroke();
-        ctx.fillStyle = color; ctx.textAlign = "left"; ctx.textBaseline = "middle";
-        ctx.fillText(text, x + 7, yy + 11, tw - 12);
-        ctx.restore();
-      }
-      smallTag(`KO ${pctText(FCN.koPct)}% ${lv.ko.toFixed(2)}`, koY, "#8e2530", true);
-      smallTag(`K ${pctText(FCN.strikePct)}% ${lv.strike.toFixed(2)}`, strikeY, "#227da0", false);
-      if (lv.hasBarrier) smallTag(`${lv.barrierType} ${pctText(FCN.barrierPct)}% ${lv.barrier.toFixed(2)}`, barrierY, "#2d9ec0", false);
-
-      // 時間線：只畫線，標籤放到下方資訊卡，避免上方塞滿。
-      function vLine(x, color, dash) {
-        ctx.save(); ctx.strokeStyle = color; ctx.setLineDash(dash); ctx.lineWidth = 1.6;
-        ctx.beginPath(); ctx.moveTo(x, plotY); ctx.lineTo(x, volY + volH); ctx.stroke(); ctx.restore();
-      }
-      vLine(issueX, "#1d6e8c", [2, 4]);
-      vLine(obsX, "#9c2d36", [2, 4]);
-      vLine(maturityX, "#202a3e", [3, 4]);
-      const periodY = plotY + plotH - 18;
-      ctx.save(); ctx.strokeStyle = "#202a3e"; ctx.lineWidth = 1.5;
-      ctx.beginPath(); ctx.moveTo(obsX, periodY); ctx.lineTo(maturityX, periodY); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(obsX, periodY - 4); ctx.lineTo(obsX, periodY + 4); ctx.moveTo(maturityX, periodY - 4); ctx.lineTo(maturityX, periodY + 4); ctx.stroke();
-      ctx.textAlign = "center"; ctx.fillStyle = "#202a3e"; ctx.font = "900 11px 'Noto Sans TC', sans-serif";
-      ctx.fillText(`${FCN.tenorMonths}個月觀察期`, clamp((obsX + maturityX) / 2, plotX + 52, plotX + plotW - 52), periodY - 8, 110);
-      ctx.restore();
-
-      // 下方資訊卡，取代原本會蓋圖的空白框。
-      const cardY = Math.min(infoY, H - dprSafeBottom - infoH - 8);
-      ctx.fillStyle = "rgba(255,255,255,.78)"; ctx.strokeStyle = "rgba(38,51,75,.38)"; ctx.lineWidth = 1.2;
-      flatRoundRect(ctx, 12, cardY, W - 24, infoH, 13); ctx.fill(); ctx.stroke();
-      ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
-      ctx.fillStyle = "#17233c"; ctx.font = "900 12px 'Noto Sans TC', sans-serif";
-      ctx.fillText(`S0 ${lv.s0.toFixed(2)}｜KO ${lv.ko.toFixed(2)}｜K ${lv.strike.toFixed(2)}${lv.hasBarrier ? `｜${lv.barrierType} ${lv.barrier.toFixed(2)}` : "｜無下限"}`, 22, cardY + 20, W - 44);
-      ctx.fillStyle = "#43506a"; ctx.font = "800 11px 'Noto Sans TC', sans-serif";
-      ctx.fillText(`年化 ${pctText(FCN.couponAnnual)}%｜${FCN.tenorMonths}個月｜第${FCN.observationAfterMonth}個月後觀察｜漲綠跌紅`, 22, cardY + 40, W - 44);
-      ctx.fillStyle = "#61708c"; ctx.font = "700 10px 'Noto Sans TC', sans-serif";
-      ctx.fillText(`時間線：評價日 ${latest.date}｜KO觀察起始｜估約到期日；點 K 棒可看開高低收。`, 22, cardY + 58, W - 44);
-
-      ctx.textAlign = "left"; ctx.fillStyle = "#6a5f4b"; ctx.font = "9px 'Noto Sans TC', sans-serif";
-      ctx.fillText("說明：此為手機直式精簡版；正式商品條件仍以 termsheet 為準。", 8, Math.min(H - dprSafeBottom + 18, H - 8), W - 16);
-    }
-
-    function drawFlatChart() {
-      setupFlatCanvas();
-      const ctx = flatCtx;
-      const W = window.innerWidth, H = window.innerHeight;
-      ctx.clearRect(0, 0, W, H);
-      ctx.fillStyle = "#efe3cb";
-      ctx.fillRect(0, 0, W, H);
-      flatHitAreas = [];
-
-      if (!currentData.length) {
-        ctx.fillStyle = "#12213a";
-        ctx.font = "700 20px 'Noto Sans TC', sans-serif";
-        ctx.fillText("資料讀取中，請稍候...", 28, 46);
-        return;
-      }
-
-      const mobilePortrait = W <= 760 && H > W;
-      if (mobilePortrait) {
-        drawFlatChartMobile(ctx, W, H);
-        return;
-      }
-
-      const compact = W < 820 || H < 720;
-      const portrait = compact && H > W;
-      const sideW = compact ? 0 : Math.min(292, Math.max(250, W * 0.20));
-      const marginL = compact ? 48 : 96;
-      const marginR = compact ? 22 : sideW + 48;
-      const titleH = compact ? 62 : 78;
-      const bottomReserve = compact ? 152 : 92;
-      const footH = compact ? 28 : 34;
-      const volH = compact ? 58 : 86;
-      const volGap = compact ? 8 : 14;
-      const plotX = marginL;
-      const plotY = titleH + (compact ? 12 : 20);
-      const plotW = Math.max(260, W - marginL - marginR);
-      const plotH = Math.max(260, H - titleH - bottomReserve - volH - volGap);
-      const volY = plotY + plotH + volGap;
-      const panelX = W - sideW - 20;
-      const panelY = plotY + 8;
-      const panelH = plotH + volH + volGap - 8;
-
-      ctx.textAlign = "center";
-      ctx.textBaseline = "alphabetic";
-      ctx.fillStyle = "#16233d";
-      ctx.font = compact ? "900 18px Georgia, 'Noto Serif TC', serif" : "900 34px Georgia, 'Noto Serif TC', 'Noto Sans TC', serif";
-      const title = compact ? "台積電 ADR｜CITI FCN / ELN 條件圖" : "TSM ADR 台積電 ADR｜CITI FCN / ELN 條件精準標示圖";
-      ctx.fillText(title, W / 2, compact ? 30 : 42, W - 18);
-      ctx.fillStyle = "#4d5a72";
-      ctx.font = compact ? "700 10px 'Noto Sans TC', sans-serif" : "700 11px 'Noto Sans TC', sans-serif";
-      const latestTemp = currentData[currentData.length - 1];
-      ctx.fillText(`資料來源：${currentSource || "目前資料"}｜最新收盤：${formatUSD(latestTemp.close)}｜點 K 棒可顯示開高低收`, W / 2, compact ? 50 : 62, W - 20);
-
-      const data = currentData;
-      const lv = fcnLevels(data);
-      const futureDays = compact ? Math.max(72, FCN.tenorMonths * 18) : Math.max(22, FCN.tenorMonths * 21);
-      const totalSlots = data.length + futureDays;
-      const slotToX = (slot) => plotX + (slot / Math.max(totalSlots - 1, 1)) * plotW;
-      const dateToX = (i) => slotToX(i);
-      const issueSlot = data.length - 1;
-      const obsSlot = issueSlot + Math.max(FCN.observationAfterMonth, 1) * 21;
-      const maturitySlot = issueSlot + Math.max(FCN.tenorMonths, 1) * 21;
-      const issueX = slotToX(issueSlot);
-      const obsX = slotToX(Math.min(obsSlot, totalSlots - 1));
-      const maturityX = slotToX(Math.min(maturitySlot, totalSlots - 1));
-      const latest = data[data.length - 1];
-
-      const prices = data.flatMap(d => [d.low, d.high, d.avg20, d.avg60, d.avg120, d.avg240].filter(Number.isFinite));
-      prices.push(lv.ko, lv.strike);
-      if (lv.hasBarrier) prices.push(lv.barrier);
-      let minP = Math.min(...prices), maxP = Math.max(...prices);
-      const pad = Math.max((maxP - minP) * (compact ? 0.12 : 0.10), 8);
-      minP -= pad; maxP += pad;
-      const yOf = p => plotY + (maxP - p) / (maxP - minP) * plotH;
-      const koY = yOf(lv.ko), strikeY = yOf(lv.strike), barrierY = lv.hasBarrier ? yOf(lv.barrier) : null;
-
-      function clamp(x, min, max) { return Math.max(min, Math.min(max, x)); }
-      function labelBox(x, y, text, color, opts = {}) {
-        const font = opts.font || (compact ? "800 11px 'Noto Sans TC', sans-serif" : "800 15px 'Noto Serif TC', serif");
-        const width = opts.width || (compact ? 138 : 260);
-        const xx = clamp(x, 4, W - width - 4);
-        flatTextBox(ctx, xx, y, [text], {
-          stroke: color,
-          color,
-          fill: opts.fill || "rgba(255,255,255,.82)",
-          font,
-          width,
-          lineHeight: compact ? 16 : 22,
-          padX: compact ? 8 : 14,
-          padY: compact ? 6 : 10,
-          radius: compact ? 9 : 10
-        });
-      }
-
-      // 色塊區域：上方 KO、觀察配息區、下方可能承接股票區。
-      ctx.save();
-      ctx.beginPath(); ctx.rect(plotX, plotY, plotW, plotH); ctx.clip();
-      ctx.fillStyle = "#eef7e6"; ctx.fillRect(plotX, plotY, plotW, Math.max(0, koY - plotY));
-      ctx.fillStyle = "#fbf0ce"; ctx.fillRect(plotX, koY, plotW, Math.max(0, strikeY - koY));
-      ctx.fillStyle = "#e3f3f8"; ctx.fillRect(plotX, strikeY, plotW, Math.max(0, plotY + plotH - strikeY));
-      if (lv.hasBarrier) { ctx.fillStyle = "rgba(64, 180, 215, .10)"; ctx.fillRect(plotX, barrierY, plotW, plotY + plotH - barrierY); }
-      ctx.restore();
-
-      // Grid and frame
-      ctx.strokeStyle = "rgba(77,93,78,.18)"; ctx.lineWidth = 1;
-      for (let i = 0; i <= 8; i++) { const x = plotX + plotW * i / 8; ctx.beginPath(); ctx.moveTo(x, plotY); ctx.lineTo(x, plotY + plotH); ctx.stroke(); }
-      for (let i = 0; i <= 6; i++) { const y = plotY + plotH * i / 6; ctx.beginPath(); ctx.moveTo(plotX, y); ctx.lineTo(plotX + plotW, y); ctx.stroke(); }
-      ctx.strokeStyle = "rgba(46,66,58,.25)"; ctx.strokeRect(plotX, plotY, plotW, plotH);
-
-      // 水平條件線
-      function hLine(y, color, dashed = false, width = 2) {
-        ctx.save(); ctx.strokeStyle = color; ctx.lineWidth = width; if (dashed) ctx.setLineDash([7, 5]);
-        ctx.beginPath(); ctx.moveTo(plotX, y); ctx.lineTo(plotX + plotW, y); ctx.stroke(); ctx.restore();
-      }
-      hLine(koY, "#8e2530", false, 2.2);
-      hLine(strikeY, "#227da0", true, 2.1);
-      if (lv.hasBarrier) hLine(barrierY, "#2d9ec0", true, 1.8);
-
-      // 量圖底色與 grid
-      ctx.fillStyle = "rgba(255,250,235,.72)"; ctx.fillRect(plotX, volY, plotW, volH);
-      ctx.strokeStyle = "rgba(80,80,70,.16)";
-      for (let i = 0; i <= 8; i++) { const x = plotX + plotW * i / 8; ctx.beginPath(); ctx.moveTo(x, volY); ctx.lineTo(x, volY + volH); ctx.stroke(); }
-      ctx.strokeRect(plotX, volY, plotW, volH);
-
-      // K 棒與成交量；台股/華人習慣：漲綠、跌紅。
-      const maxVol = Math.max(...data.map(d => d.volume || 0), 1);
-      const candleW = Math.max(1.6, Math.min(compact ? 4.2 : 7, plotW / totalSlots * 0.66));
-      data.forEach((d, i) => {
-        const x = dateToX(i);
-        const up = d.close >= d.open;
-        const col = up ? "#2e8b57" : "#b33b36";
-        const oy = yOf(d.open), cy = yOf(d.close), hy = yOf(d.high), ly = yOf(d.low);
-        ctx.strokeStyle = col; ctx.lineWidth = Math.max(1, candleW * .22);
-        ctx.beginPath(); ctx.moveTo(x, hy); ctx.lineTo(x, ly); ctx.stroke();
-        ctx.fillStyle = col;
-        const bodyY = Math.min(oy, cy), bodyH = Math.max(1.2, Math.abs(cy - oy));
-        ctx.fillRect(x - candleW / 2, bodyY, candleW, bodyH);
-        const vh = (d.volume || 0) / maxVol * (volH - 8);
-        ctx.globalAlpha = .58; ctx.fillRect(x - candleW / 2, volY + volH - vh, candleW, vh); ctx.globalAlpha = 1;
-        flatHitAreas.push({ x: x - Math.max(8, candleW * 1.6), y: plotY, w: Math.max(16, candleW * 3.2), h: plotH, index: i });
-      });
-
-      function drawAverage(key, color, label, yOffset = 0) {
-        ctx.save(); ctx.strokeStyle = color; ctx.lineWidth = compact ? 1.8 : 2.1; ctx.beginPath(); let started = false;
-        data.forEach((d, i) => {
-          const v = d[key]; if (!Number.isFinite(v)) return;
-          const x = dateToX(i), y = yOf(v);
-          if (!started) { ctx.moveTo(x, y); started = true; } else ctx.lineTo(x, y);
-        });
-        if (started) ctx.stroke();
-        const latestWith = [...data].reverse().find(d => Number.isFinite(d[key]));
-        if (latestWith) {
-          const idx = data.indexOf(latestWith);
-          const x = clamp(dateToX(idx) + 7, plotX + 2, plotX + plotW - 45);
-          const y = clamp(yOf(latestWith[key]) + yOffset, plotY + 12, plotY + plotH - 8);
-          ctx.font = compact ? "800 10px 'Noto Sans TC', sans-serif" : "800 12px 'Noto Sans TC', sans-serif";
-          ctx.fillStyle = color; ctx.fillText(label, x, y);
-        }
-        ctx.restore();
-      }
-      drawAverage("avg20", "#2c7fb8", "月線", -4);
-      drawAverage("avg60", "#7a51b8", "季線", 12);
-      drawAverage("avg120", "#d08a2e", "半年線", -16);
-      drawAverage("avg240", "#4a7c59", "年線", 20);
-
-      // 圖例
-      ctx.textAlign = "left"; ctx.textBaseline = "alphabetic"; ctx.font = compact ? "800 10px 'Noto Sans TC', sans-serif" : "700 11px 'Noto Sans TC', sans-serif";
-      const legend = [["月線", "#2c7fb8"], ["季線", "#7a51b8"], ["半年線", "#d08a2e"], ["年線", "#4a7c59"]];
-      legend.forEach(([t, c], i) => {
-        const y = plotY + 14 + i * (compact ? 13 : 15);
-        ctx.strokeStyle = c; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(plotX + 5, y - 4); ctx.lineTo(plotX + 24, y - 4); ctx.stroke();
-        ctx.fillStyle = "#1e2b3e"; ctx.fillText(t, plotX + 28, y - 8);
-      });
-
-      // 價格與月份軸
-      ctx.textAlign = "right"; ctx.font = compact ? "10px 'Noto Sans TC', sans-serif" : "12px 'Noto Sans TC', sans-serif"; ctx.fillStyle = "#21324b";
-      for (let i = 0; i <= 5; i++) { const p = minP + (maxP - minP) * i / 5; ctx.fillText(p.toFixed(0), plotX - 7, yOf(p) + 4); }
-      ctx.save(); ctx.textAlign = "center"; ctx.fillStyle = "#1d2d47"; ctx.font = compact ? "10px 'Noto Sans TC', sans-serif" : "12px 'Noto Sans TC', sans-serif";
-      const labelStep = compact ? Math.max(26, Math.ceil(data.length / 5)) : Math.max(18, Math.ceil(data.length / 9));
-      data.forEach((d, i) => {
-        if (i === 0 || i === data.length - 1 || i % labelStep === 0) {
-          const x = dateToX(i);
-          ctx.save(); ctx.translate(x, volY + volH + (compact ? 17 : 22)); ctx.rotate(compact ? -Math.PI / 5 : -Math.PI / 6); ctx.fillText(flatMapDateLabel(d), 0, 0); ctx.restore();
-        }
-      });
-      ctx.restore();
-      ctx.save(); ctx.translate(plotX - (compact ? 34 : 52), volY + volH / 2); ctx.rotate(-Math.PI / 2); ctx.textAlign = "center"; ctx.font = compact ? "800 11px 'Noto Sans TC', sans-serif" : "700 13px 'Noto Sans TC', sans-serif"; ctx.fillText("成交量", 0, 0); ctx.restore();
-
-      // 價格標籤：手機版改成短標籤，避免跑出螢幕。
-      if (compact) {
-        labelBox(plotX + plotW - 146, koY - 17, `KO ${pctText(FCN.koPct)}% ${lv.ko.toFixed(2)}`, "#8e2530", { width: 142 });
-        labelBox(plotX + plotW - 146, strikeY - 17, `K ${pctText(FCN.strikePct)}% ${lv.strike.toFixed(2)}`, "#227da0", { width: 142 });
-        if (lv.hasBarrier) labelBox(plotX + plotW - 146, barrierY - 17, `${lv.barrierType} ${pctText(FCN.barrierPct)}% ${lv.barrier.toFixed(2)}`, "#2d9ec0", { width: 142 });
-      } else {
-        flatTextBox(ctx, Math.min(plotX + plotW - 330, plotX + plotW * .68), koY - 25, [`KO價 ${pctText(FCN.koPct)}% / 初始價：${lv.s0.toFixed(2)} USD`], { stroke: "#8e2530", color: "#8e2530", fill: "rgba(255,255,255,.84)", font: "800 17px 'Noto Serif TC', serif", width: 330 });
-        flatTextBox(ctx, Math.min(plotX + plotW - 285, plotX + plotW * .76), strikeY - 24, [`履約價 K ${pctText(FCN.strikePct)}%：${lv.strike.toFixed(2)} USD`], { stroke: "#227da0", color: "#1b7292", fill: "rgba(255,255,255,.84)", font: "800 16px 'Noto Serif TC', serif", width: 285 });
-        if (lv.hasBarrier) flatTextBox(ctx, Math.min(plotX + plotW - 270, plotX + plotW * .72), barrierY - 22, [`${lv.barrierType} ${pctText(FCN.barrierPct)}%：${lv.barrier.toFixed(2)} USD`], { stroke: "#2d9ec0", color: "#2d7690", fill: "rgba(255,255,255,.80)", font: "800 15px 'Noto Serif TC', serif", width: 260 });
-      }
-
-      // 左側解釋框：只在平板/桌機顯示，手機避免覆蓋 K 線。
-      if (!compact) {
-        flatTextBox(ctx, plotX + 14, koY - 122, ["KO 提前出場區", `KO觀察開始後，若 TSM ADR 觸及或高於初始價，可能提前出場`], { stroke: "#2a9b78", color: "#163d36", fill: "rgba(255,255,255,.60)", width: 510 });
-        flatTextBox(ctx, plotX + 14, koY + 32, ["觀察配息區", `股價低於初始價、但高於履約價 ${pctText(FCN.strikePct)}%，通常繼續觀察配息`], { stroke: "#d0aa40", color: "#65420b", fill: "rgba(255,255,255,.58)", width: 500 });
-        flatTextBox(ctx, plotX + 14, strikeY + 34, ["購買股票區域", `若到期 TSM ADR 低於履約價 ${pctText(FCN.strikePct)}%，等於以履約價承接台積電 ADR`], { stroke: "#2382a2", color: "#15516a", fill: "rgba(255,255,255,.58)", width: 560 });
-      }
-
-      // 垂直時間線與觀察區間
-      function vLine(x, color, label, shortLabel, row = 0, stroke = [2, 4]) {
-        ctx.save(); ctx.strokeStyle = color; ctx.setLineDash(stroke); ctx.lineWidth = compact ? 1.5 : 1.7; ctx.beginPath(); ctx.moveTo(x, plotY); ctx.lineTo(x, volY + volH); ctx.stroke(); ctx.restore();
-        if (compact) {
-          const w = 74;
-          labelBox(x - w / 2, plotY + 5 + row * 25, shortLabel, color, { width: w, font: "800 10px 'Noto Sans TC', sans-serif" });
-        } else {
-          ctx.save(); ctx.translate(x + 5, plotY + 8); ctx.rotate(-Math.PI / 2);
-          flatTextBox(ctx, 0, 0, [label], { stroke: color, color, fill: "rgba(255,255,255,.86)", font: "800 14px 'Noto Serif TC', serif", width: 114, padX: 9, padY: 6, radius: 7 });
-          ctx.restore();
-        }
-      }
-      vLine(issueX, "#1d6e8c", `評價日 ${latest.date}`, "評價日", 0);
-      vLine(obsX, "#9c2d36", `KO觀察起始 第${FCN.observationAfterMonth}個月後`, "KO觀察", 1);
-      vLine(maturityX, "#202a3e", `估約到期日 ${FCN.tenorMonths}個月`, "到期", 2, [3, 4]);
-
-      ctx.save(); ctx.strokeStyle = "#202a3e"; ctx.lineWidth = compact ? 1.5 : 2;
-      const periodY = plotY + plotH - (compact ? 20 : 28);
-      ctx.beginPath(); ctx.moveTo(obsX, periodY); ctx.lineTo(maturityX, periodY); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(obsX, periodY - 5); ctx.lineTo(obsX, periodY + 5); ctx.moveTo(maturityX, periodY - 5); ctx.lineTo(maturityX, periodY + 5); ctx.stroke();
-      const periodText = `FCN / ELN 約${FCN.tenorMonths}個月觀察期間`;
-      if (compact) {
-        ctx.textAlign = "center"; ctx.fillStyle = "#202a3e"; ctx.font = "900 12px 'Noto Sans TC', sans-serif";
-        ctx.fillText(periodText, clamp((obsX + maturityX) / 2, plotX + 78, plotX + plotW - 78), periodY - 10, 155);
-      } else {
-        flatTextBox(ctx, (obsX + maturityX) / 2 - 100, plotY + plotH - 60, [periodText], { stroke: "#202a3e", color: "#202a3e", fill: "rgba(255,255,255,.84)", font: "800 14px 'Noto Serif TC', serif", width: 205 });
-      }
-      ctx.restore();
-
-      // 右側條件面板
-      if (!compact) {
-        ctx.fillStyle = "rgba(255,255,255,.70)"; ctx.strokeStyle = "#26334b"; ctx.lineWidth = 1.5;
-        flatRoundRect(ctx, panelX, panelY, sideW, panelH, 12); ctx.fill(); ctx.stroke();
-        ctx.textAlign = "left"; ctx.fillStyle = "#1a253a"; ctx.font = "800 16px 'Noto Serif TC', serif";
-        let tx = panelX + 16, ty = panelY + 18;
-        ctx.fillText("產品條件", tx, ty); ty += 34;
-        ctx.font = "700 14px 'Noto Serif TC', serif";
-        const panelLines = [
-          "產品代號：WMGS26060291", "發行機構：CITI", "架構：FCN / ELN", "標的：TSM ADR", "台積電 ADR", `天期：${FCN.tenorMonths}個月`, "幣別：USD", "",
-          "配息條件", `年化配息：${pctText(FCN.couponAnnual)}%`, `${FCN.tenorMonths}個月約當：${(lv.totalCoupon * 100).toFixed(2)}%`, "",
-          "價格條件", `初始價：${lv.s0.toFixed(2)} USD`, `KO價${pctText(FCN.koPct)}%：${lv.ko.toFixed(2)} USD`, `履約價K${pctText(FCN.strikePct)}%：${lv.strike.toFixed(2)} USD`, lv.hasBarrier ? `${lv.barrierType}${pctText(FCN.barrierPct)}%：${lv.barrier.toFixed(2)} USD` : "下限條件：沒有", "",
-          "KO條件", `KO Type：${FCN.koType}`, `KO觀察：第${FCN.observationAfterMonth}個月後起`, "",
-          "白話說明", "1. 回到初始價以上，可能提前出場。", `2. 介於履約價到KO間，通常持續觀察配息。`, `3. 到期低於履約價，可能以履約價承接。`, "4. 仍以正式條款書為準。"
-        ];
-        panelLines.forEach(line => { if (line === "") { ty += 10; return; } ctx.fillText(line, tx, ty); ty += 20; });
-      } else {
-        // 手機版用底部簡短說明，避免右側條件欄擠壓主圖。
-        const infoY = Math.min(H - 86, volY + volH + 48);
-        ctx.fillStyle = "rgba(255,255,255,.58)"; ctx.strokeStyle = "rgba(38,51,75,.35)";
-        flatRoundRect(ctx, 12, infoY, W - 24, 44, 12); ctx.fill(); ctx.stroke();
-        ctx.textAlign = "left"; ctx.fillStyle = "#1b2b44"; ctx.font = "800 11px 'Noto Sans TC', sans-serif";
-        ctx.fillText(`初始價 ${lv.s0.toFixed(2)}｜年化 ${pctText(FCN.couponAnnual)}%｜天期 ${FCN.tenorMonths}個月｜${lv.hasBarrier ? lv.barrierType + " " + pctText(FCN.barrierPct) + "%" : "無下限條件"}`, 22, infoY + 18, W - 44);
-        ctx.fillStyle = "#536079"; ctx.font = "700 10px 'Noto Sans TC', sans-serif";
-        ctx.fillText("手機直式已簡化標籤；橫向觀看會更接近完整簡報版。", 22, infoY + 34, W - 44);
-      }
-
-      ctx.textAlign = "left"; ctx.fillStyle = "#536079"; ctx.font = compact ? "10px 'Noto Sans TC', sans-serif" : "13px 'Noto Sans TC', sans-serif";
-      ctx.fillText("說明：本圖以 Yahoo Finance 股價資料估算初始價與條件線；正式說明仍以 termsheet 為準。", 8, H - 10, W - 16);
-    }
-
-
-    async function fetchJson(url) {
-      const res = await fetch(url, { cache: "no-store" });
-      if (!res.ok) throw new Error(`${url} HTTP ${res.status}`);
-      return await res.json();
-    }
-
-    async function fetchLocalMasterData() {
-      try {
-        const file = await fetchJson(`data/tsm-2y.json?updated=${Date.now()}`);
-        return { rows: normalizeRows(file.rows || []), source: file.updatedAt ? `自動更新 ${file.updatedAt}` : "自動更新資料", master: "2y" };
-      } catch (e2y) {
-        try {
-          const file = await fetchJson(`data/tsm-1y.json?updated=${Date.now()}`);
-          return { rows: normalizeRows(file.rows || []), source: file.updatedAt ? `自動更新 ${file.updatedAt}` : "自動更新資料", master: "1y" };
-        } catch (e1y) {
-          throw e2y;
-        }
-      }
-    }
-
-    function normalizeRows(rows) {
-      return rows.map(d => ({
-        time: Number(d.time),
-        date: d.date || formatDate(Number(d.time)),
-        open: Number(d.open), high: Number(d.high), low: Number(d.low), close: Number(d.close), volume: Number(d.volume || 0)
-      })).filter(d => Number.isFinite(d.time) && Number.isFinite(d.open) && Number.isFinite(d.high) && Number.isFinite(d.low) && Number.isFinite(d.close));
-    }
-
-    async function fetchYahoo2Y() {
-      const url = `https://query1.finance.yahoo.com/v8/finance/chart/TSM?range=2y&interval=1d&includePrePost=false&events=history`;
-      const raw = await fetchJson(url);
-      const result = raw.chart?.result?.[0];
-      if (!result) throw new Error("Yahoo payload missing result");
-      const timestamps = result.timestamp || [];
-      const q = result.indicators?.quote?.[0] || {};
-      const rows = timestamps.map((t, i) => ({ time: t, date: formatDate(t), open: q.open?.[i], high: q.high?.[i], low: q.low?.[i], close: q.close?.[i], volume: q.volume?.[i] || 0 })).filter(d => d.open && d.high && d.low && d.close);
-      if (rows.length < 220) throw new Error("Yahoo rows too few");
       return rows;
     }
 
-    function fallbackData(count = 560) {
-      const rows = [];
-      let close = 105;
-      const now = Date.now();
-      for (let i = count - 1; i >= 0; i--) {
-        const t = Math.floor((now - i * 86400000 * 1.42) / 1000);
-        const trend = Math.sin((count - i) / 22) * 2.7 + Math.cos((count - i) / 53) * 4.2 + 0.42;
-        const open = close + Math.sin((count - i) / 5.4) * 2.2;
-        close = Math.max(65, open + trend + Math.sin((count - i) / 4.4) * 2.0);
-        const high = Math.max(open, close) + 2.2 + Math.abs(Math.sin(i * 1.77)) * 4.5;
-        const low = Math.min(open, close) - 2.2 - Math.abs(Math.cos(i * 1.31)) * 3.7;
-        rows.push({ time: t, date: formatDate(t), open, high, low, close, volume: Math.round(5500000 + Math.abs(Math.sin(i / 8)) * 11000000) });
+    function fallbackRows(){
+      let seed=12; const rand=()=>{seed=(seed*9301+49297)%233280; return seed/233280;};
+      const rows=[]; let price=205;
+      const end=Date.UTC(2026,5,18)/1000;
+      const start=end-740*86400;
+      for(let i=0; rows.length<520 && i<820; i++){
+        const t=start+i*86400;
+        const weekday=new Date(t*1000).getUTCDay();
+        if(weekday===0||weekday===6) continue;
+        const drift=0.62 + Math.sin(i/34)*0.18;
+        const shock=(rand()-0.46)*8;
+        const open=price+(rand()-0.5)*5;
+        const close=Math.max(120, open+drift+shock);
+        const high=Math.max(open,close)+rand()*7;
+        const low=Math.min(open,close)-rand()*7;
+        const date=new Date(t*1000).toISOString().slice(0,10).replaceAll("-","/");
+        rows.push({time:start+i*86400,date,open:+open.toFixed(2),high:+high.toFixed(2),low:+low.toFixed(2),close:+close.toFixed(2),volume:Math.round(4800000+rand()*9000000)});
+        price=close;
       }
+      const scale=462.12/rows[rows.length-1].close;
+      rows.forEach(r=>{["open","high","low","close"].forEach(k=>r[k]=+(r[k]*scale).toFixed(2));});
       return rows;
     }
 
-    function enrichAverages(data) {
-      const periods = [20, 60, 120, 240];
-      for (let i = 0; i < data.length; i++) {
-        for (const p of periods) {
-          if (i + 1 < p) data[i][`avg${p}`] = null;
-          else {
-            const slice = data.slice(i + 1 - p, i + 1);
-            data[i][`avg${p}`] = slice.reduce((sum, d) => sum + d.close, 0) / p;
-          }
-        }
-        if (i + 1 < 20) data[i].volumeAvg = null;
-        else data[i].volumeAvg = data.slice(i - 19, i + 1).reduce((sum, d) => sum + (d.volume || 0), 0) / 20;
-      }
-      return data;
+    async function fetchJson(url){const res=await fetch(url,{cache:"no-store"}); if(!res.ok)throw new Error(String(res.status)); return res.json();}
+    async function loadRows(){
+      try{const file=await fetchJson(`data/tsm-2y.json?v=${Date.now()}`); sourceText=file.updatedAt?`自動更新 ${file.updatedAt}`:"自動更新資料"; return normalizeRows(file.rows||[]);}catch(e){}
+      try{const file=await fetchJson(`data/tsm-1y.json?v=${Date.now()}`); sourceText=file.updatedAt?`自動更新 ${file.updatedAt}`:"自動更新資料"; return normalizeRows(file.rows||[]);}catch(e){}
+      sourceText="示範資料，請先確認 GitHub Actions 是否產生 data/tsm-2y.json";
+      return fallbackRows();
     }
 
-    function sliceRange(range) {
-      const n = rangeCounts[range] || 252;
-      return fullData.slice(Math.max(0, fullData.length - n));
+    function levels(){
+      const s0 = Number.isFinite(FCN.initial) && FCN.initial>0 ? FCN.initial : (displayRows[0]?.close || 0);
+      return {s0, ko:s0*FCN.koPct, strike:s0*FCN.strikePct, barrier:s0*FCN.barrierPct, hasBarrier:FCN.barrierType!=="NONE", totalCoupon:FCN.couponAnnual*FCN.tenorMonths/12};
     }
 
-    function getInitialPrice(data) {
-      if (Number.isFinite(FCN.customInitial) && FCN.customInitial > 0) return FCN.customInitial;
-      return data[0]?.close || data[0]?.open || 0;
-    }
-
-    function fcnLevels(data) {
-      const s0 = getInitialPrice(data);
-      const hasBarrier = FCN.barrierType !== "NONE";
-      return {
-        s0,
-        ko: s0 * FCN.koPct,
-        strike: s0 * FCN.strikePct,
-        barrier: hasBarrier ? s0 * FCN.barrierPct : null,
-        couponMonthly: FCN.couponAnnual / 12,
-        totalCoupon: FCN.couponAnnual * FCN.tenorMonths / 12,
-        hasBarrier,
-        barrierType: FCN.barrierType
-      };
-    }
-
-    function disposeObject(obj) {
-      if (!obj) return;
-      obj.traverse?.(child => {
-        if (child.geometry) child.geometry.dispose();
-        if (child.material) {
-          if (Array.isArray(child.material)) child.material.forEach(m => m.dispose());
-          else child.material.dispose();
-        }
-        if (child.material?.map) child.material.map.dispose?.();
-      });
-    }
-
-    function clearRoot() {
-      while (root.children.length) {
-        const child = root.children.pop();
-        disposeObject(child);
-      }
-      interactiveMeshes = [];
-      selectedMarker = null;
-    }
-
-    function makeLabel(text, position, size = 1.0, opacity = 0.86, color = "#ffffff", bg = "rgba(5,9,18,.54)") {
-      const canvas = document.createElement("canvas");
-      const ctx = canvas.getContext("2d");
+    function resizeCanvas(){
+      const W = chartShell.clientWidth - 16;
+      const mobile = W < 700;
+      const H = mobile ? clamp(Math.round(W*1.42), 545, 640) : clamp(Math.round(W*0.58), 560, 720);
       const ratio = Math.min(window.devicePixelRatio || 1, 2);
-      ctx.font = `${Math.round(30 * ratio)}px -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif`;
-      const w = Math.ceil(ctx.measureText(text).width + 36 * ratio);
-      const h = Math.ceil(52 * ratio);
-      canvas.width = w; canvas.height = h;
-      ctx.font = `${Math.round(30 * ratio)}px -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif`;
-      ctx.fillStyle = bg;
-      roundRect(ctx, 0, 0, w, h, 16 * ratio);
-      ctx.fill();
-      ctx.fillStyle = color;
-      ctx.globalAlpha = opacity;
-      ctx.fillText(text, 18 * ratio, 35 * ratio);
-      ctx.globalAlpha = 1;
-      const texture = new THREE.CanvasTexture(canvas);
-      const material = new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false });
-      const sprite = new THREE.Sprite(material);
-      sprite.scale.set((w / h) * size * 2.4, size * 2.4, 1);
-      sprite.position.copy(position);
-      root.add(sprite);
-      return sprite;
-    }
-    function roundRect(ctx, x, y, w, h, r) {
-      ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
+      canvas.width = Math.round(W*ratio); canvas.height = Math.round(H*ratio);
+      canvas.style.width = W+"px"; canvas.style.height = H+"px";
+      ctx.setTransform(ratio,0,0,ratio,0,0);
+      drawFlat();
     }
 
-    function makeLine(points, color, opacity = .95) {
-      const geometry = new THREE.BufferGeometry().setFromPoints(points);
-      const material = new THREE.LineBasicMaterial({ color, transparent: true, opacity });
-      const line = new THREE.Line(geometry, material);
-      root.add(line);
-      return line;
+    function rr(ctx,x,y,w,h,r){const m=Math.min(r,w/2,h/2);ctx.beginPath();ctx.moveTo(x+m,y);ctx.arcTo(x+w,y,x+w,y+h,m);ctx.arcTo(x+w,y+h,x,y+h,m);ctx.arcTo(x,y+h,x,y,m);ctx.arcTo(x,y,x+w,y,m);ctx.closePath();}
+    function pill(ctx,x,y,w,h,text,color,fill="rgba(255,255,255,.82)",font="900 12px 'Noto Sans TC', sans-serif"){
+      ctx.save(); rr(ctx,x,y,w,h,Math.min(12,h/2)); ctx.fillStyle=fill; ctx.strokeStyle=color; ctx.lineWidth=1.6; ctx.fill(); ctx.stroke(); ctx.fillStyle=color; ctx.font=font; ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText(text,x+w/2,y+h/2,w-8); ctx.restore();
+    }
+    function linePath(ctx, rows, key, xOf, yOf, color, width){
+      ctx.save(); ctx.strokeStyle=color; ctx.lineWidth=width; ctx.beginPath(); let started=false;
+      rows.forEach((d,i)=>{const v=d[key]; if(!Number.isFinite(v))return; const x=xOf(i), y=yOf(v); if(!started){ctx.moveTo(x,y); started=true;}else ctx.lineTo(x,y);});
+      if(started)ctx.stroke(); ctx.restore();
     }
 
-    function makeDashedLevel(startX, xEnd, y, z, color, label, price) {
-      const material = new THREE.LineDashedMaterial({ color, transparent: true, opacity: .92, dashSize: 1.15, gapSize: .55 });
-      const geometry = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(startX - 2, y, z), new THREE.Vector3(xEnd + 7.2, y, z)]);
-      const line = new THREE.Line(geometry, material);
-      line.computeLineDistances();
-      root.add(line);
-      makeLabel(`${label} ${formatUSD(price)}`, new THREE.Vector3(xEnd + 9.2, y, z), .82, .92, `#${color.toString(16).padStart(6, "0")}`);
-    }
+    function drawFlat(){
+      if(!displayRows.length) return;
+      const W = canvas.clientWidth, H = canvas.clientHeight;
+      const mobile = W < 700;
+      const data = displayRows;
+      const lv = levels();
+      const latest = data[data.length-1];
+      hitAreas=[];
+      ctx.clearRect(0,0,W,H);
+      ctx.fillStyle="#f4ead5"; ctx.fillRect(0,0,W,H);
 
-    function renderAverage(data, key, color, priceToY, startX, spacing, z, labelOffsetY, labelName) {
-      const points = [];
-      for (let i = 0; i < data.length; i++) {
-        const v = data[i][key];
-        if (Number.isFinite(v)) points.push(new THREE.Vector3(startX + i * spacing, priceToY(v), z));
-      }
-      if (points.length < 2) return false;
-      makeLine(points, color, .98);
-      const latestPoint = points[points.length - 1];
-      const latestRow = data.slice().reverse().find(d => Number.isFinite(d[key]));
-      makeLabel(`${labelName} ${formatUSD(latestRow[key])}`, new THREE.Vector3(latestPoint.x + 6.8, latestPoint.y + labelOffsetY, z), .72, .92, `#${color.toString(16).padStart(6, "0")}`);
-      return points.length >= data.length * .86;
-    }
+      const marginL = mobile ? 44 : 60;
+      const marginR = mobile ? 12 : 22;
+      const topPad = mobile ? 12 : 16;
+      const volH = mobile ? 54 : 72;
+      const xH = mobile ? 30 : 36;
+      const gap = 7;
+      const plotX = marginL;
+      const plotY = topPad;
+      const plotW = W - marginL - marginR;
+      const plotH = H - topPad - volH - xH - gap - 6;
+      const volY = plotY + plotH + gap;
 
-    function updateFcnSummary(data) {
-      const lv = fcnLevels(data);
-      $("fcnInitial").textContent = formatUSD(lv.s0);
-      $("fcnKO").textContent = formatUSD(lv.ko);
-      $("fcnK").textContent = formatUSD(lv.strike);
-      $("fcnBarrier").textContent = lv.hasBarrier ? formatUSD(lv.barrier) : "沒有";
-      $("fcnCoupon").textContent = `${pctText(FCN.couponAnnual)}% / ${(lv.couponMonthly * 100).toFixed(2)}%`;
-      $("fcnTotalCoupon").textContent = `約 ${(lv.totalCoupon * 100).toFixed(2)}%`;
-      $("couponTotalLabel").textContent = `${FCN.tenorMonths} 個月滿期配息示意`;
-      $("fcnKOLabel").textContent = `KO 提前出場價 ${pctText(FCN.koPct)}%`;
-      $("fcnStrikeLabel").textContent = `履約價 K ${pctText(FCN.strikePct)}%`;
-      $("fcnBarrierLabel").textContent = lv.hasBarrier ? `${FCN.barrierType} ${pctText(FCN.barrierPct)}%` : "沒有下限條件";
-      const barrierPhrase = lv.hasBarrier ? `${FCN.barrierType} ${pctText(FCN.barrierPct)}%` : "沒有下限條件";
-      $("fcnNote").textContent = `目前條件：${FCN.tenorMonths} 個月、美元計價、年化配息 ${pctText(FCN.couponAnnual)}%、KO ${pctText(FCN.koPct)}%、履約價 K ${pctText(FCN.strikePct)}%、${barrierPhrase}、第 ${FCN.observationAfterMonth} 個月後觀察、${FCN.koType}。`;
-    }
+      const futureSlots = Math.max(46, Math.round(FCN.tenorMonths*21));
+      const totalSlots = data.length + futureSlots;
+      const xOf = i => plotX + (i/Math.max(totalSlots-1,1))*plotW;
+      const issueSlot = data.length-1;
+      const obsSlot = issueSlot + Math.max(1,FCN.observationAfterMonth)*21;
+      const maturitySlot = issueSlot + Math.max(1,FCN.tenorMonths)*21;
+      const issueX = xOf(issueSlot);
+      const obsX = xOf(Math.min(obsSlot,totalSlots-1));
+      const matX = xOf(Math.min(maturitySlot,totalSlots-1));
 
-    function fcnStatus(close, lv) {
-      if (!Number.isFinite(close)) return "--";
-      if (close >= lv.ko) return `高於 KO ${pctText(FCN.koPct)}%：若逢觀察日，可能提前出場`;
-      if (close >= lv.strike) return "高於履約價：目前位於履約價之上";
-      if (!lv.hasBarrier) return "低於履約價，但本條件設定為沒有下限條件；請以正式條款為準";
-      if (close <= lv.barrier) {
-        if (lv.barrierType === "AKI") return `低於 AKI ${pctText(FCN.barrierPct)}%：若條款為期間觀察，需留意敲入風險`;
-        if (lv.barrierType === "EKI") return `低於 EKI ${pctText(FCN.barrierPct)}%：若條款為到期或指定日觀察，需依 termsheet 判定`;
-      }
-      return `低於履約價，但尚高於 ${lv.barrierType} 下限`;
-    }
+      const prices = data.flatMap(d=>[d.low,d.high,d.month,d.quarter,d.half,d.year].filter(Number.isFinite));
+      prices.push(lv.ko,lv.strike); if(lv.hasBarrier) prices.push(lv.barrier);
+      let minP = Math.min(...prices), maxP = Math.max(...prices);
+      const pad = Math.max((maxP-minP)*0.10,8); minP-=pad; maxP+=pad;
+      const yOf = p => plotY + (maxP-p)/(maxP-minP)*plotH;
+      const koY = yOf(lv.ko), strikeY = yOf(lv.strike), barrierY = yOf(lv.barrier);
 
-    function setDataWarning(message) {
-      dataWarning.style.display = message ? "block" : "none";
-      dataWarning.textContent = message || "";
-    }
+      // 主圖背景區塊
+      ctx.save(); ctx.beginPath(); ctx.rect(plotX,plotY,plotW,plotH); ctx.clip();
+      ctx.fillStyle="#eef7e6"; ctx.fillRect(plotX,plotY,plotW,Math.max(0,koY-plotY));
+      ctx.fillStyle="#fbf0ce"; ctx.fillRect(plotX,koY,plotW,Math.max(0,strikeY-koY));
+      ctx.fillStyle="#e3f3f8"; ctx.fillRect(plotX,strikeY,plotW,Math.max(0,plotY+plotH-strikeY));
+      if(lv.hasBarrier){ctx.fillStyle="rgba(64,180,215,.10)";ctx.fillRect(plotX,barrierY,plotW,plotY+plotH-barrierY);}
+      ctx.restore();
 
-    function renderCandles(data, sourceTag) {
-      clearRoot();
-      currentData = data;
-      currentSource = sourceTag;
-      sourceBadge.textContent = sourceTag;
+      // grid
+      ctx.save(); ctx.strokeStyle="rgba(68,82,71,.22)"; ctx.lineWidth=1;
+      for(let i=0;i<=4;i++){const x=plotX+plotW*i/4;ctx.beginPath();ctx.moveTo(x,plotY);ctx.lineTo(x,plotY+plotH);ctx.stroke();}
+      for(let i=0;i<=5;i++){const y=plotY+plotH*i/5;ctx.beginPath();ctx.moveTo(plotX,y);ctx.lineTo(plotX+plotW,y);ctx.stroke();}
+      ctx.restore();
+      ctx.strokeStyle="rgba(38,51,75,.36)";ctx.lineWidth=1.3;ctx.strokeRect(plotX,plotY,plotW,plotH);
 
-      const lv = fcnLevels(data);
-      const priceCandidates = data.flatMap(d => [d.low, d.high, d.avg20, d.avg60, d.avg120, d.avg240].filter(Number.isFinite));
-      priceCandidates.push(lv.ko, lv.strike);
-      if (lv.hasBarrier) priceCandidates.push(lv.barrier);
-      const minPriceRaw = Math.min(...priceCandidates);
-      const maxPriceRaw = Math.max(...priceCandidates);
-      const pad = Math.max((maxPriceRaw - minPriceRaw) * .12, 8);
-      const minPrice = minPriceRaw - pad;
-      const maxPrice = maxPriceRaw + pad;
-      const priceToY = price => ((price - minPrice) / (maxPrice - minPrice)) * 34 + 2;
+      function hLine(y,color,dash=false,width=2){ctx.save();ctx.strokeStyle=color;ctx.lineWidth=width;if(dash)ctx.setLineDash([8,5]);ctx.beginPath();ctx.moveTo(plotX,y);ctx.lineTo(plotX+plotW,y);ctx.stroke();ctx.restore();}
+      hLine(koY,"#8e2530",false,2.2); hLine(strikeY,"#227da0",true,2.0); if(lv.hasBarrier) hLine(barrierY,"#2d9ec0",true,2.0);
 
-      const spacing = data.length > 190 ? .72 : data.length > 130 ? .86 : data.length > 70 ? 1.15 : 1.55;
-      const width = data.length > 190 ? .43 : data.length > 130 ? .54 : data.length > 70 ? .66 : .82;
-      const depth = data.length > 190 ? .38 : .48;
-      const startX = -((data.length - 1) * spacing) / 2;
-      const xEnd = startX + (data.length - 1) * spacing;
-      const maxVol = Math.max(...data.map(d => d.volume || 0), 1);
+      // y axis labels
+      ctx.save(); ctx.fillStyle="#34405a"; ctx.font=(mobile?"11px":"12px")+" 'Noto Sans TC', sans-serif"; ctx.textAlign="right"; ctx.textBaseline="middle";
+      for(let i=0;i<=5;i++){const p=minP+(maxP-minP)*i/5;const y=yOf(p);ctx.fillText(p.toFixed(0),plotX-7,y);}
+      ctx.restore();
 
-      const grid = new THREE.GridHelper(Math.max(82, Math.abs(xEnd - startX) + 30), 42, 0x32445f, 0x182236);
-      grid.position.set(0, 0, 3.2);
-      root.add(grid);
+      // volume panel
+      ctx.fillStyle="rgba(255,250,235,.78)"; ctx.fillRect(plotX,volY,plotW,volH); ctx.strokeStyle="rgba(80,80,70,.20)"; ctx.strokeRect(plotX,volY,plotW,volH);
+      ctx.save(); ctx.strokeStyle="rgba(68,82,71,.16)"; for(let i=0;i<=4;i++){const x=plotX+plotW*i/4;ctx.beginPath();ctx.moveTo(x,volY);ctx.lineTo(x,volY+volH);ctx.stroke();} ctx.restore();
 
-      makeLine([new THREE.Vector3(startX - 2, 0, -2.3), new THREE.Vector3(startX - 2, priceToY(maxPrice) + 2.6, -2.3)], 0xffffff, .25);
-      makeLine([new THREE.Vector3(startX - 2, 0, -2.3), new THREE.Vector3(xEnd + 2, 0, -2.3)], 0xffffff, .25);
-      for (let i = 0; i <= 5; i++) {
-        const p = minPrice + (maxPrice - minPrice) * (i / 5);
-        const y = priceToY(p);
-        makeLine([new THREE.Vector3(startX - 1.5, y, -2.8), new THREE.Vector3(xEnd + 1.5, y, -2.8)], 0xffffff, .11);
-        makeLabel(formatUSD(p), new THREE.Vector3(startX - 7.4, y, -2.8), .54, .62);
-      }
-      makeLabel(data[0].date, new THREE.Vector3(startX, -1.45, -2.4), .55, .60);
-      makeLabel(data[data.length - 1].date, new THREE.Vector3(xEnd, -1.45, -2.4), .55, .60);
-      makeLabel("台積電ADR FCN：價格軸 Y｜時間軸 X｜成交量在前排", new THREE.Vector3((startX + xEnd) / 2, priceToY(maxPrice) + 5.2, -1.3), 1.14, .88);
-
-      const bodyMaterials = {
-        up: new THREE.MeshStandardMaterial({ color: colors.green, metalness: .20, roughness: .34, emissive: 0x003820, emissiveIntensity: .08 }),
-        down: new THREE.MeshStandardMaterial({ color: colors.red, metalness: .20, roughness: .34, emissive: 0x3a0000, emissiveIntensity: .08 }),
-        hit: new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.0, depthWrite: false })
-      };
-
-      data.forEach((d, i) => {
-        const x = startX + i * spacing;
-        const openY = priceToY(d.open), closeY = priceToY(d.close), highY = priceToY(d.high), lowY = priceToY(d.low);
-        const isUp = d.close >= d.open;
-        const material = isUp ? bodyMaterials.up : bodyMaterials.down;
-        const bodyH = Math.max(Math.abs(closeY - openY), .10);
-        const bodyGeo = new THREE.BoxGeometry(width, bodyH, depth);
-        const body = new THREE.Mesh(bodyGeo, material);
-        body.position.set(x, (openY + closeY) / 2, 0);
-        body.userData = { candle: d, index: i, isUp };
-        root.add(body);
-        interactiveMeshes.push(body);
-
-        const wickGeo = new THREE.CylinderGeometry(Math.max(width * .055, .018), Math.max(width * .055, .018), Math.max(highY - lowY, .1), 9);
-        const wick = new THREE.Mesh(wickGeo, material);
-        wick.position.set(x, (highY + lowY) / 2, 0);
-        wick.userData = { candle: d, index: i, isUp };
-        root.add(wick);
-        interactiveMeshes.push(wick);
-
-        const hitGeo = new THREE.BoxGeometry(Math.max(width * 1.95, .92), Math.max(highY - lowY, bodyH, 3.4), 2.0);
-        const hitBox = new THREE.Mesh(hitGeo, bodyMaterials.hit);
-        hitBox.position.set(x, (highY + lowY) / 2, 0);
-        hitBox.userData = { candle: d, index: i, isUp, hitBox: true };
-        root.add(hitBox);
-        interactiveMeshes.push(hitBox);
-
-        const volH = ((d.volume || 0) / maxVol) * 8.0 + .15;
-        const volMat = new THREE.MeshStandardMaterial({ color: isUp ? colors.green : colors.red, transparent: true, opacity: .42, roughness: .55 });
-        const vol = new THREE.Mesh(new THREE.BoxGeometry(width, volH, depth * .8), volMat);
-        vol.position.set(x, volH / 2, 6.0);
-        root.add(vol);
+      // candle + volume
+      const maxVol = Math.max(...data.map(d=>d.volume||0),1);
+      const candleW = clamp(plotW/totalSlots*0.74, mobile?1.05:1.2, mobile?2.4:3.4);
+      ctx.save(); ctx.beginPath(); ctx.rect(plotX,plotY,plotW,plotH); ctx.clip();
+      data.forEach((d,i)=>{
+        const x=xOf(i); const up=d.close>=d.open; const col=up?"#2e8b57":"#b33b36";
+        const oy=yOf(d.open),cy=yOf(d.close),hy=yOf(d.high),ly=yOf(d.low);
+        ctx.strokeStyle=col;ctx.lineWidth=Math.max(1,candleW*.35);ctx.beginPath();ctx.moveTo(x,hy);ctx.lineTo(x,ly);ctx.stroke();
+        ctx.fillStyle=col;ctx.fillRect(x-candleW/2,Math.min(oy,cy),candleW,Math.max(1,Math.abs(cy-oy)));
+        hitAreas.push({x:x-Math.max(5,candleW*2.2),y:plotY,w:Math.max(10,candleW*4.4),h:plotH,index:i});
       });
+      linePath(ctx,data,"month",xOf,yOf,"#2c7fb8",mobile?1.8:2.2);
+      linePath(ctx,data,"quarter",xOf,yOf,"#7a51b8",mobile?1.8:2.2);
+      linePath(ctx,data,"half",xOf,yOf,"#d08a2e",mobile?1.8:2.2);
+      linePath(ctx,data,"year",xOf,yOf,"#4a7c59",mobile?1.8:2.2);
+      ctx.restore();
 
-      renderAverage(data, "avg20", colors.month, priceToY, startX, spacing, -1.15, .45, "月線");
-      renderAverage(data, "avg60", colors.quarter, priceToY, startX, spacing, -1.85, -.45, "季線");
-      renderAverage(data, "avg120", colors.half, priceToY, startX, spacing, -2.55, .82, "半年線");
-      const fullYearLine = renderAverage(data, "avg240", colors.year, priceToY, startX, spacing, -3.25, -.82, "年線");
-      if (!fullYearLine && currentSource.includes("1y")) setDataWarning("年線需要較長歷史資料才能從圖左側完整畫出。請上傳本版 scripts/fetch_tsm.py 並讓 GitHub Actions 產生 data/tsm-2y.json。");
+      data.forEach((d,i)=>{const x=xOf(i);const up=d.close>=d.open;const vh=(d.volume||0)/maxVol*(volH-7);ctx.fillStyle=up?"rgba(46,139,87,.55)":"rgba(179,59,54,.55)";ctx.fillRect(x-candleW/2,volY+volH-vh,candleW,vh);});
 
-      const barrierZ = -4.25;
-      makeDashedLevel(startX, xEnd, priceToY(lv.ko), barrierZ, colors.ko, `KO ${pctText(FCN.koPct)}%`, lv.ko);
-      makeDashedLevel(startX, xEnd, priceToY(lv.strike), barrierZ - .55, colors.strike, `履約價 ${pctText(FCN.strikePct)}%`, lv.strike);
-      if (lv.hasBarrier) makeDashedLevel(startX, xEnd, priceToY(lv.barrier), barrierZ - 1.1, colors.barrier, `${lv.barrierType} ${pctText(FCN.barrierPct)}%`, lv.barrier);
+      // legend compact, top-left, does not cover key candles too much
+      const lgX=plotX+8, lgY=plotY+8, lgW=mobile?84:104, lgH=mobile?74:88;
+      ctx.save();ctx.fillStyle="rgba(255,255,255,.76)";ctx.strokeStyle="rgba(31,44,65,.18)";rr(ctx,lgX,lgY,lgW,lgH,10);ctx.fill();ctx.stroke();
+      const items=[["月線","#2c7fb8"],["季線","#7a51b8"],["半年線","#d08a2e"],["年線","#4a7c59"]];
+      ctx.font=(mobile?"900 11px":"900 13px")+" 'Noto Sans TC', sans-serif";ctx.textAlign="left";ctx.textBaseline="middle";
+      items.forEach(([t,c],i)=>{const y=lgY+(mobile?14:16)+i*(mobile?16:18);ctx.strokeStyle=c;ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(lgX+8,y);ctx.lineTo(lgX+30,y);ctx.stroke();ctx.fillStyle="#17233c";ctx.fillText(t,lgX+36,y);});ctx.restore();
 
-      const latest = data[data.length - 1];
-      lastPriceEl.textContent = formatUSD(latest.close);
-      rangeHighEl.textContent = formatUSD(Math.max(...data.map(d => d.high)));
-      rangeLowEl.textContent = formatUSD(Math.min(...data.map(d => d.low)));
-      updateFcnSummary(data);
-      if (viewMode === "flat") drawFlatChart();
-      updateSelectedMarker(selectedCandleIndex >= 0 ? Math.min(selectedCandleIndex, data.length - 1) : -1);
-      loading.style.display = "none";
+      // price labels, clamped inside chart
+      const labelH=mobile?24:28;
+      pill(ctx, plotX+plotW-(mobile?132:190), clamp(koY-labelH/2,plotY+4,plotY+plotH-labelH-4), mobile?126:184, labelH, `KO ${fmtPct(FCN.koPct)}% ${lv.ko.toFixed(2)}`, "#8e2530", "rgba(255,255,255,.86)", mobile?"900 12px 'Noto Sans TC'":"900 15px 'Noto Sans TC'");
+      pill(ctx, plotX+8, clamp(strikeY-labelH/2,plotY+4,plotY+plotH-labelH-4), mobile?130:180, labelH, `K ${fmtPct(FCN.strikePct)}% ${lv.strike.toFixed(2)}`, "#227da0", "rgba(255,255,255,.84)", mobile?"900 12px 'Noto Sans TC'":"900 15px 'Noto Sans TC'");
+      if(lv.hasBarrier) pill(ctx, plotX+8, clamp(barrierY-labelH/2,plotY+4,plotY+plotH-labelH-4), mobile?142:190, labelH, `${FCN.barrierType} ${fmtPct(FCN.barrierPct)}% ${lv.barrier.toFixed(2)}`, "#2d9ec0", "rgba(255,255,255,.82)", mobile?"900 12px 'Noto Sans TC'":"900 15px 'Noto Sans TC'");
+
+      // vertical date lines
+      function vLine(x,color){ctx.save();ctx.strokeStyle=color;ctx.setLineDash([3,5]);ctx.lineWidth=1.8;ctx.beginPath();ctx.moveTo(x,plotY);ctx.lineTo(x,volY+volH);ctx.stroke();ctx.restore();}
+      vLine(issueX,"#1d6e8c");vLine(obsX,"#9c2d36");vLine(matX,"#202a3e");
+      const topPillY=plotY+mobile?0:0;
+      if(!mobile){pill(ctx,issueX-44,plotY+10,88,28,"評價日","#1d6e8c");pill(ctx,obsX-52,plotY+44,104,28,"KO觀察","#9c2d36");pill(ctx,matX-38,plotY+78,76,28,"到期","#202a3e");}
+
+      // observation bracket, inside bottom right
+      const by=plotY+plotH-(mobile?26:34);
+      ctx.save();ctx.strokeStyle="#202a3e";ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(obsX,by);ctx.lineTo(matX,by);ctx.moveTo(obsX,by-7);ctx.lineTo(obsX,by+7);ctx.moveTo(matX,by-7);ctx.lineTo(matX,by+7);ctx.stroke();ctx.fillStyle="#202a3e";ctx.font=(mobile?"900 12px":"900 15px")+" 'Noto Sans TC', sans-serif";ctx.textAlign="center";ctx.fillText(`${FCN.tenorMonths}個月觀察期`,clamp((obsX+matX)/2,plotX+70,plotX+plotW-70),by-12,140);ctx.restore();
+
+      // x labels: no overlap; max 5 labels on mobile
+      ctx.save();ctx.fillStyle="#25334d";ctx.font=(mobile?"11px":"12px")+" 'Noto Sans TC', sans-serif";ctx.textAlign="center";ctx.textBaseline="top";
+      const tickCount=mobile?5:8; const used=[];
+      for(let t=0;t<tickCount;t++){const idx=Math.round((data.length-1)*t/(tickCount-1));const x=xOf(idx); if(used.some(u=>Math.abs(u-x)<54))continue; used.push(x); ctx.fillText(dateLabel(data[idx]),x,volY+volH+8,64);}
+      ctx.restore();
+      ctx.save();ctx.translate(mobile?14:20,volY+volH/2);ctx.rotate(-Math.PI/2);ctx.fillStyle="#17233c";ctx.font="900 13px 'Noto Sans TC', sans-serif";ctx.textAlign="center";ctx.fillText("成交量",0,0);ctx.restore();
+
+      // selected highlight
+      if(Number.isInteger(selectedIndex) && data[selectedIndex]){const x=xOf(selectedIndex);ctx.save();ctx.strokeStyle="rgba(20,34,58,.72)";ctx.lineWidth=1.3;ctx.setLineDash([4,4]);ctx.beginPath();ctx.moveTo(x,plotY);ctx.lineTo(x,volY+volH);ctx.stroke();ctx.restore();}
     }
 
-    async function loadMasterThenRange(range) {
-      currentRange = range;
-      loading.style.display = "grid";
-      sourceBadge.textContent = "讀取中";
-      setDataWarning("");
-      try {
-        const local = await fetchLocalMasterData();
-        fullData = enrichAverages(local.rows);
-        currentSource = local.source;
-        if (local.master !== "2y") setDataWarning("目前只讀到 1 年資料，年線前段可能不完整。請讓 GitHub Actions 產生 data/tsm-2y.json。");
-      } catch (localErr) {
-        console.warn(localErr);
-        try {
-          const yahoo = await fetchYahoo2Y();
-          fullData = enrichAverages(yahoo);
-          currentSource = "公開行情即時讀取｜建議設定 GitHub Actions";
-        } catch (yahooErr) {
-          console.warn(yahooErr);
-          fullData = enrichAverages(fallbackData(560));
-          currentSource = "示範資料｜未讀到自動更新檔";
-          setDataWarning("尚未讀到 data/tsm-2y.json。本頁先顯示示範資料；請到 GitHub Actions 手動執行更新，成功後再重新整理。 ");
-        }
+    function updateSourceLine(){
+      const last=displayRows[displayRows.length-1];
+      $("sourceLine").textContent = `${sourceText}｜最新收盤 ${fmtUSD(last?.close)}｜預設顯示平面圖，點 K 棒可看開高低收`;
+    }
+    function updateDetail(i){
+      const d=displayRows[i]; if(!d)return;
+      selectedIndex=i;
+      const lv=levels(); const chg=(d.close-d.open)/d.open;
+      const fcnStatus = d.close>=lv.ko ? "收盤高於或等於 KO 線" : d.close>=lv.strike ? "介於 KO 與履約價 K 之間" : (lv.hasBarrier && d.close<=lv.barrier ? `低於 ${FCN.barrierType} 下限` : "低於履約價 K");
+      $("detailCard").innerHTML = `
+        <div class="detailTitle">${shortDate(d)}　${d.close>=d.open?"上漲綠K":"下跌紅K"}</div>
+        <div class="detailSub">FCN 位置：${fcnStatus}</div>
+        <div class="detailGrid">
+          <div class="detailItem"><div class="k">開盤</div><div class="v">${fmtUSD(d.open)}</div></div>
+          <div class="detailItem"><div class="k">最高</div><div class="v">${fmtUSD(d.high)}</div></div>
+          <div class="detailItem"><div class="k">最低</div><div class="v">${fmtUSD(d.low)}</div></div>
+          <div class="detailItem"><div class="k">收盤</div><div class="v">${fmtUSD(d.close)}</div></div>
+          <div class="detailItem"><div class="k">當日漲跌</div><div class="v">${(chg*100).toFixed(2)}%</div></div>
+          <div class="detailItem"><div class="k">成交量</div><div class="v">${fmtVol(d.volume)}</div></div>
+          <div class="detailItem"><div class="k">月線</div><div class="v">${fmtNum(d.month)}</div></div>
+          <div class="detailItem"><div class="k">季線</div><div class="v">${fmtNum(d.quarter)}</div></div>
+          <div class="detailItem"><div class="k">半年線</div><div class="v">${fmtNum(d.half)}</div></div>
+          <div class="detailItem"><div class="k">年線</div><div class="v">${fmtNum(d.year)}</div></div>
+          <div class="detailItem"><div class="k">履約價 K</div><div class="v">${fmtUSD(lv.strike)}</div></div>
+          <div class="detailItem"><div class="k">${lv.hasBarrier?FCN.barrierType:"下限"}</div><div class="v">${lv.hasBarrier?fmtUSD(lv.barrier):"無"}</div></div>
+        </div>`;
+      drawFlat();
+    }
+
+    // 3D chart
+    let threeReady=false, scene, camera, renderer, controls, root;
+    async function initThree(){
+      if(threeReady)return;
+      if(!THREE){
+        const threeModule = await import("three");
+        const controlsModule = await import("three/addons/controls/OrbitControls.js");
+        THREE = threeModule;
+        OrbitControls = controlsModule.OrbitControls;
       }
-      renderCandles(sliceRange(range), currentSource);
+      const stage=$("stage");
+      scene=new THREE.Scene(); scene.background=new THREE.Color(0x08101f);
+      camera=new THREE.PerspectiveCamera(55,stage.clientWidth/stage.clientHeight,.1,1000); camera.position.set(0,32,68);
+      renderer=new THREE.WebGLRenderer({antialias:true}); renderer.setPixelRatio(Math.min(devicePixelRatio||1,2)); renderer.setSize(stage.clientWidth,stage.clientHeight); stage.appendChild(renderer.domElement);
+      controls=new OrbitControls(camera,renderer.domElement); controls.enableDamping=true; controls.autoRotate=false; controls.target.set(0,15,0);
+      scene.add(new THREE.AmbientLight(0xffffff,1.5)); const l=new THREE.DirectionalLight(0xffffff,2); l.position.set(30,50,30); scene.add(l);
+      root=new THREE.Group(); scene.add(root);
+      threeReady=true; animateThree();
+    }
+    function rebuildThree(){
+      if(!threeReady)return;
+      root.clear(); const data=displayRows; const lv=levels();
+      const prices=data.flatMap(d=>[d.low,d.high,d.month,d.quarter,d.half,d.year].filter(Number.isFinite)); prices.push(lv.ko,lv.strike); if(lv.hasBarrier)prices.push(lv.barrier);
+      let minP=Math.min(...prices), maxP=Math.max(...prices); const pad=Math.max((maxP-minP)*.1,8); minP-=pad; maxP+=pad;
+      const yOf=p=>(p-minP)/(maxP-minP)*34+2; const startX=-(data.length-1)*0.38/2;
+      const matG={up:new THREE.MeshStandardMaterial({color:0x00d084,roughness:.45}),down:new THREE.MeshStandardMaterial({color:0xff4d4d,roughness:.45}),ko:new THREE.MeshBasicMaterial({color:0xff5f7e}),k:new THREE.MeshBasicMaterial({color:0x4cc9f0}),b:new THREE.MeshBasicMaterial({color:0x4cc9f0})};
+      root.add(new THREE.GridHelper(110,36,0x344766,0x1d2b43));
+      data.forEach((d,i)=>{const x=startX+i*.38; const up=d.close>=d.open; const bodyH=Math.max(.08,Math.abs(yOf(d.close)-yOf(d.open))); const bodyY=(yOf(d.close)+yOf(d.open))/2; const body=new THREE.Mesh(new THREE.BoxGeometry(.22,bodyH,.18),up?matG.up:matG.down); body.position.set(x,bodyY,0); root.add(body); const wick=new THREE.Mesh(new THREE.CylinderGeometry(.018,.018,Math.max(.08,yOf(d.high)-yOf(d.low)),8),up?matG.up:matG.down); wick.position.set(x,(yOf(d.high)+yOf(d.low))/2,0); root.add(wick);});
+      function linePrice(p,material){const y=yOf(p); const geo=new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(startX-3,y,-1.5),new THREE.Vector3(-startX+28,y,-1.5)]); root.add(new THREE.Line(geo,material));}
+      linePrice(lv.ko,matG.ko); linePrice(lv.strike,matG.k); if(lv.hasBarrier)linePrice(lv.barrier,matG.b);
+    }
+    function animateThree(){requestAnimationFrame(animateThree); if(threeReady){controls.update(); renderer.render(scene,camera);}}
+    function resizeThree(){if(!threeReady)return; const stage=$("stage"); camera.aspect=stage.clientWidth/stage.clientHeight; camera.updateProjectionMatrix(); renderer.setSize(stage.clientWidth,stage.clientHeight);}
+
+    function readFcn(){
+      FCN.initial=Number($("initialInput").value)||NaN;
+      FCN.tenorMonths=Math.max(1,Number($("tenorInput").value)||6);
+      FCN.couponAnnual=(Number($("couponInput").value)||0)/100;
+      FCN.koPct=(Number($("koInput").value)||100)/100;
+      FCN.strikePct=(Number($("strikeInput").value)||85)/100;
+      FCN.barrierType=$("barrierTypeInput").value;
+      FCN.barrierPct=(Number($("barrierInput").value)||60)/100;
+      FCN.observationAfterMonth=Math.max(1,Number($("obsInput").value)||1);
+      FCN.koType=$("koTypeInput").value;
     }
 
-    function resetCamera() { camera.position.set(0, 36, 74); controls.target.set(0, 18, 0); controls.update(); }
-    function setHudOpen(open) { hudPanel.classList.toggle("open", open); hudToggle.textContent = open ? "收合資訊" : "展開資訊"; }
-    hudToggle.addEventListener("click", () => setHudOpen(!hudPanel.classList.contains("open")));
-    $("openInfoPanel").addEventListener("click", () => setHudOpen(true));
-    $("openFcnPanel").addEventListener("click", () => fcnPanel.classList.add("open"));
-    $("closeFcnPanel").addEventListener("click", () => fcnPanel.classList.remove("open"));
-    $("resetView").addEventListener("click", resetCamera);
-    $("modeToggle").addEventListener("click", () => setViewMode(viewMode === "flat" ? "3d" : "flat"));
-
-    document.querySelectorAll("button[data-range]").forEach(btn => {
-      btn.addEventListener("click", () => {
-        document.querySelectorAll("button[data-range]").forEach(b => b.classList.remove("active"));
-        btn.classList.add("active");
-        renderCandles(sliceRange(btn.dataset.range), currentSource || "目前資料");
-        currentRange = btn.dataset.range;
-      });
-    });
-
-    $("applyFcn").addEventListener("click", () => {
-      const v = Number(inputs.initial.value), tenor = Number(inputs.tenor.value), coupon = Number(inputs.coupon.value), ko = Number(inputs.ko.value), strike = Number(inputs.strike.value), barrier = Number(inputs.barrier.value), obs = Number(inputs.obs.value);
-      FCN.customInitial = Number.isFinite(v) && v > 0 ? v : null;
-      FCN.tenorMonths = Number.isFinite(tenor) && tenor > 0 ? Math.round(tenor) : 7;
-      FCN.couponAnnual = Number.isFinite(coupon) && coupon >= 0 ? coupon / 100 : 0.12;
-      FCN.koPct = Number.isFinite(ko) && ko > 0 ? ko / 100 : 1.00;
-      FCN.strikePct = Number.isFinite(strike) && strike > 0 ? strike / 100 : 0.75;
-      FCN.barrierType = inputs.barrierType.value || "AKI";
-      FCN.barrierPct = Number.isFinite(barrier) && barrier > 0 ? barrier / 100 : 0.60;
-      FCN.observationAfterMonth = Number.isFinite(obs) && obs > 0 ? Math.round(obs) : 1;
-      FCN.koType = inputs.memory.value || "Daily Memory KO";
-      saveFcn();
-      syncFcnInputs();
-      if (currentData.length) {
-        renderCandles(sliceRange(currentRange), currentSource || "目前資料");
-        fcnPanel.classList.remove("open");
-      }
-    });
-
-    function candleChangeText(d) {
-      const change = d.close - d.open;
-      const pct = d.open ? change / d.open * 100 : 0;
-      const sign = change >= 0 ? "+" : "";
-      return `${sign}${change.toFixed(2)} (${sign}${pct.toFixed(2)}%)`;
+    function rebuildAll(){
+      masterRows=addAverages(normalizeRows(rawRows));
+      displayRows=masterRows.slice(-250);
+      updateSourceLine();
+      selectedIndex=null;
+      drawFlat();
+      rebuildThree();
     }
 
-    function updateSelectedMarker(index) {
-      if (selectedMarker) { disposeObject(selectedMarker); root.remove(selectedMarker); selectedMarker = null; }
-      if (!currentData[index]) return;
-      const obj = interactiveMeshes.find(o => o.userData?.index === index && o.userData?.hitBox);
-      if (!obj) return;
-      const h = Math.max(obj.geometry.parameters.height || 3, 3);
-      selectedMarker = new THREE.Mesh(new THREE.BoxGeometry(1.08, h, 1.18), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: .25, wireframe: true }));
-      selectedMarker.position.copy(obj.position);
-      root.add(selectedMarker);
-    }
+    // events
+    canvas.addEventListener("click",e=>{const rect=canvas.getBoundingClientRect();const x=e.clientX-rect.left,y=e.clientY-rect.top;let hit=hitAreas.find(a=>x>=a.x&&x<=a.x+a.w&&y>=a.y&&y<=a.y+a.h);if(!hit){let best=null,dist=1e9;hitAreas.forEach(a=>{const cx=a.x+a.w/2;const d=Math.abs(cx-x);if(y>=a.y&&y<=a.y+a.h&&d<dist){dist=d;best=a;}});hit=best;} if(hit)updateDetail(hit.index);});
+    $("modeToggle").addEventListener("click", async ()=>{viewMode=viewMode==="flat"?"3d":"flat";document.body.classList.toggle("three-mode",viewMode==="3d");$("modeToggle").textContent=viewMode==="3d"?"回到平面圖":"切換 3D 圖";if(viewMode==="3d"){try{await initThree();setTimeout(()=>{resizeThree();rebuildThree();},80);}catch(err){alert("3D 模組載入失敗，平面圖仍可使用。請確認網路可連到 three.js CDN。");viewMode="flat";document.body.classList.remove("three-mode");$("modeToggle").textContent="切換 3D 圖";}}else{resizeCanvas();}});
+    $("fcnToggle").addEventListener("click",()=>$("fcnDrawer").classList.toggle("open"));
+    $("closeFcn").addEventListener("click",()=>$("fcnDrawer").classList.remove("open"));
+    $("applyBtn").addEventListener("click",()=>{readFcn();selectedIndex=null;drawFlat();rebuildThree();$("fcnDrawer").classList.remove("open");});
+    $("resetBtn").addEventListener("click",()=>{selectedIndex=null;drawFlat();rebuildThree();});
+    window.addEventListener("resize",()=>{resizeCanvas();resizeThree();});
 
-    function showCandleDetail(index) {
-      const d = currentData[index]; if (!d) return;
-      selectedCandleIndex = index;
-      updateSelectedMarker(index);
-      const lv = fcnLevels(currentData);
-      const up = d.close >= d.open;
-      drawerTitle.textContent = `${d.date}｜${up ? "上漲綠 K" : "下跌紅 K"}`;
-      drawerSub.textContent = `第 ${index + 1} 根 / 共 ${currentData.length} 根；點上一根、下一根可逐日檢視。`;
-      const barrierLine = lv.hasBarrier ? `${lv.barrierType}：${formatUSD(lv.barrier)}` : "下限條件：沒有";
-      detailGrid.innerHTML = `
-        <div class="detailItem"><div class="k">開盤</div><div class="v">${formatUSD(d.open)}</div></div>
-        <div class="detailItem"><div class="k">最高</div><div class="v">${formatUSD(d.high)}</div></div>
-        <div class="detailItem"><div class="k">最低</div><div class="v">${formatUSD(d.low)}</div></div>
-        <div class="detailItem"><div class="k">收盤</div><div class="v">${formatUSD(d.close)}</div></div>
-        <div class="detailItem"><div class="k">當日漲跌</div><div class="v">${candleChangeText(d)}</div></div>
-        <div class="detailItem"><div class="k">成交量</div><div class="v">${formatVolume(d.volume)}</div></div>
-        <div class="detailItem"><div class="k">月線 / 季線</div><div class="v">${formatUSD(d.avg20)} / ${formatUSD(d.avg60)}</div></div>
-        <div class="detailItem"><div class="k">半年線 / 年線</div><div class="v">${formatUSD(d.avg120)} / ${formatUSD(d.avg240)}</div></div>
-        <div class="detailItem big"><div class="k">FCN 條件位置</div><div class="detailStatus">
-          ${fcnStatus(d.close, lv)}<br>
-          S0：${formatUSD(lv.s0)}｜KO：${formatUSD(lv.ko)}｜履約價：${formatUSD(lv.strike)}｜${barrierLine}<br>
-          年化配息 ${pctText(FCN.couponAnnual)}%｜${FCN.tenorMonths} 個月｜第 ${FCN.observationAfterMonth} 個月後觀察｜${FCN.koType}
-        </div></div>`;
-      detailDrawer.classList.add("open");
-      tooltip.style.display = "none";
-    }
-
-    function pickCandleAt(clientX, clientY) {
-      const rect = renderer.domElement.getBoundingClientRect();
-      pointer.x = ((clientX - rect.left) / rect.width) * 2 - 1;
-      pointer.y = -((clientY - rect.top) / rect.height) * 2 + 1;
-      raycaster.setFromCamera(pointer, camera);
-      const hits = raycaster.intersectObjects(interactiveMeshes, false).filter(h => h.object?.userData?.candle);
-      if (!hits.length) return null;
-      const hit = hits.find(h => h.object.userData.hitBox) || hits[0];
-      return hit.object.userData;
-    }
-
-    flatCanvas.addEventListener("pointerdown", event => { flatPointerDown = { x: event.clientX, y: event.clientY, t: performance.now() }; });
-    flatCanvas.addEventListener("pointerup", event => {
-      if (!flatPointerDown) return;
-      const moved = Math.hypot(event.clientX - flatPointerDown.x, event.clientY - flatPointerDown.y);
-      const elapsed = performance.now() - flatPointerDown.t;
-      flatPointerDown = null;
-      if (moved > 10 || elapsed > 900) return;
-      const rect = flatCanvas.getBoundingClientRect();
-      const x = event.clientX - rect.left, y = event.clientY - rect.top;
-      const hit = flatHitAreas.find(a => x >= a.x && x <= a.x + a.w && y >= a.y && y <= a.y + a.h);
-      if (hit) showCandleDetail(hit.index);
-    });
-
-    renderer.domElement.addEventListener("pointerdown", event => { pointerDownInfo = { x: event.clientX, y: event.clientY, t: performance.now() }; });
-    renderer.domElement.addEventListener("pointerup", event => {
-      if (!pointerDownInfo) return;
-      const moved = Math.hypot(event.clientX - pointerDownInfo.x, event.clientY - pointerDownInfo.y);
-      const elapsed = performance.now() - pointerDownInfo.t;
-      pointerDownInfo = null;
-      if (moved > 10 || elapsed > 900) return;
-      const picked = pickCandleAt(event.clientX, event.clientY);
-      if (picked?.candle && Number.isInteger(picked.index)) showCandleDetail(picked.index);
-    });
-
-    function onPointerMove(event) {
-      if (event.pointerType === "touch") return;
-      const picked = pickCandleAt(event.clientX, event.clientY);
-      if (!picked?.candle) { tooltip.style.display = "none"; return; }
-      const d = picked.candle, lv = fcnLevels(currentData), barrierLine = lv.hasBarrier ? `${lv.barrierType}：${formatUSD(lv.barrier)}` : "下限條件：沒有";
-      tooltip.style.display = "block";
-      tooltip.style.left = Math.min(window.innerWidth - 345, event.clientX + 16) + "px";
-      tooltip.style.top = Math.min(window.innerHeight - 280, event.clientY + 16) + "px";
-      tooltip.innerHTML = `<b>${d.date}｜${picked.isUp ? "上漲綠 K" : "下跌紅 K"}</b><br>
-        開盤：${formatUSD(d.open)}｜最高：${formatUSD(d.high)}<br>
-        最低：${formatUSD(d.low)}｜收盤：${formatUSD(d.close)}<br>
-        月線：${formatUSD(d.avg20)}｜季線：${formatUSD(d.avg60)}<br>
-        半年線：${formatUSD(d.avg120)}｜年線：${formatUSD(d.avg240)}<br>
-        成交量：${formatVolume(d.volume)}｜20日均量：${formatVolume(d.volumeAvg)}<br>
-        <hr style="border:0;border-top:1px solid rgba(255,255,255,.13);margin:7px 0">
-        FCN 狀態：${fcnStatus(d.close, lv)}<br>
-        KO：${formatUSD(lv.ko)}｜履約價：${formatUSD(lv.strike)}｜${barrierLine}`;
-    }
-    renderer.domElement.addEventListener("pointermove", onPointerMove);
-    renderer.domElement.addEventListener("pointerleave", () => tooltip.style.display = "none");
-    $("closeDrawer").addEventListener("click", () => detailDrawer.classList.remove("open"));
-    $("prevCandle").addEventListener("click", () => { if (currentData.length) showCandleDetail(Math.max(0, selectedCandleIndex - 1)); });
-    $("nextCandle").addEventListener("click", () => { if (currentData.length) showCandleDetail(Math.min(currentData.length - 1, selectedCandleIndex + 1)); });
-
-    window.addEventListener("resize", () => {
-      camera.aspect = window.innerWidth / window.innerHeight;
-      camera.updateProjectionMatrix();
-      renderer.setSize(window.innerWidth, window.innerHeight);
-      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-      if (viewMode === "flat") drawFlatChart();
-    });
-
-    function animate() {
-      requestAnimationFrame(animate);
-      controls.update();
-      renderer.render(scene, camera);
-    }
-
-    loadMasterThenRange("1y");
-    animate();
+    rawRows=await loadRows();
+    rebuildAll();
+    requestAnimationFrame(resizeCanvas);
   </script>
 </body>
 </html>
