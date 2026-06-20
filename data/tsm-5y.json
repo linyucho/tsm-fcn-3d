@@ -1,9 +1,10 @@
 {
   "ticker": "TSM",
+  "name": "台積電 ADR",
   "source": "Yahoo Finance chart API via GitHub Actions",
   "range": "5y",
   "interval": "1d",
-  "updatedAt": "2026-06-20 16:16 UTC",
+  "updatedAt": "2026-06-20 16:29 UTC",
   "latest": {
     "time": 1781789400,
     "date": "2026/06/18",
