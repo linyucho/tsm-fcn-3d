@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>台積電 ADR｜FCN / ELN 條件圖</title>
+  <title>台積電 ADR｜FCN / ELN 條件圖 V12</title>
   <meta name="description" content="台積電 ADR FCN/ELN 條件圖，預設平面K線圖，支援3D切換、手機點選單根K棒與FCN條件更新。" />
   <style>
     :root {
@@ -238,9 +238,10 @@
 
     async function fetchJson(url){const res=await fetch(url,{cache:"no-store"}); if(!res.ok)throw new Error(String(res.status)); return res.json();}
     async function loadRows(){
+      try{const file=await fetchJson(`data/tsm-5y.json?v=${Date.now()}`); sourceText=file.updatedAt?`自動更新 ${file.updatedAt}`:"自動更新資料"; return normalizeRows(file.rows||[]);}catch(e){}
       try{const file=await fetchJson(`data/tsm-2y.json?v=${Date.now()}`); sourceText=file.updatedAt?`自動更新 ${file.updatedAt}`:"自動更新資料"; return normalizeRows(file.rows||[]);}catch(e){}
       try{const file=await fetchJson(`data/tsm-1y.json?v=${Date.now()}`); sourceText=file.updatedAt?`自動更新 ${file.updatedAt}`:"自動更新資料"; return normalizeRows(file.rows||[]);}catch(e){}
-      sourceText="示範資料，請先確認 GitHub Actions 是否產生 data/tsm-2y.json";
+      sourceText="示範資料，請先確認 GitHub Actions 是否產生 data/tsm-5y.json 或 data/tsm-2y.json";
       return fallbackRows();
     }
 
@@ -299,6 +300,10 @@
       if(!displayRows.length) return;
       const W = canvas.clientWidth, H = canvas.clientHeight;
       const mobile = (flatScroll?.clientWidth || W) < 700;
+      const scrollLeft = flatScroll ? (flatScroll.scrollLeft || 0) : 0;
+      const visibleW = flatScroll ? (flatScroll.clientWidth || W) : W;
+      const visibleLeft = scrollLeft;
+      const visibleRight = scrollLeft + visibleW;
       const data = displayRows;
       const lv = levels();
       const latest = data[data.length-1];
@@ -382,24 +387,45 @@
 
       data.forEach((d,i)=>{const x=xOf(i);const up=d.close>=d.open;const vh=(d.volume||0)/maxVol*(volH-7);ctx.fillStyle=up?"rgba(46,139,87,.55)":"rgba(179,59,54,.55)";ctx.fillRect(x-candleW/2,volY+volH-vh,candleW,vh);});
 
-      // legend compact, top-left, does not cover key candles too much
-      const lgX=plotX+8, lgY=plotY+8, lgW=mobile?84:104, lgH=mobile?74:88;
-      ctx.save();ctx.fillStyle="rgba(255,255,255,.76)";ctx.strokeStyle="rgba(31,44,65,.18)";rr(ctx,lgX,lgY,lgW,lgH,10);ctx.fill();ctx.stroke();
-      const items=[["月線","#2c7fb8"],["季線","#7a51b8"],["半年線","#d08a2e"],["年線","#4a7c59"]];
-      ctx.font=(mobile?"900 11px":"900 13px")+" 'Noto Sans TC', sans-serif";ctx.textAlign="left";ctx.textBaseline="middle";
-      items.forEach(([t,c],i)=>{const y=lgY+(mobile?14:16)+i*(mobile?16:18);ctx.strokeStyle=c;ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(lgX+8,y);ctx.lineTo(lgX+30,y);ctx.stroke();ctx.fillStyle="#17233c";ctx.fillText(t,lgX+36,y);});ctx.restore();
-
-      // 條件價格標籤：放在最新 K 棒右側的未來觀察區，避免擋住 K 線。
-      const labelH=mobile?24:28;
-      const labelW=mobile?148:196;
-      const futureLabelX = clamp(issueX + (mobile?12:18), plotX+6, plotX+plotW-labelW-6);
-      pill(ctx, futureLabelX, clamp(koY-labelH/2,plotY+4,plotY+plotH-labelH-4), labelW, labelH, `出場價格 ${lv.ko.toFixed(2)}`, "#8e2530", "rgba(255,255,255,.88)", mobile?"900 12px 'Noto Sans TC'":"900 15px 'Noto Sans TC'");
-      pill(ctx, futureLabelX, clamp(strikeY-labelH/2,plotY+4,plotY+plotH-labelH-4), labelW, labelH, `執行價格 ${lv.strike.toFixed(2)}`, "#227da0", "rgba(255,255,255,.86)", mobile?"900 12px 'Noto Sans TC'":"900 15px 'Noto Sans TC'");
-      if(lv.hasBarrier) {
-        pill(ctx, futureLabelX, clamp(barrierY-labelH/2,plotY+4,plotY+plotH-labelH-4), labelW, labelH, `保護傘 ${FCN.barrierType} ${lv.barrier.toFixed(2)}`, "#2d9ec0", "rgba(255,255,255,.84)", mobile?"900 12px 'Noto Sans TC'":"900 15px 'Noto Sans TC'");
-      } else {
-        pill(ctx, futureLabelX, plotY+plotH-(mobile?58:66), labelW, labelH, `保護傘：沒有`, "#2d9ec0", "rgba(255,255,255,.84)", mobile?"900 12px 'Noto Sans TC'":"900 15px 'Noto Sans TC'");
+      // 均線標註：手機版直接標在圖線旁邊，避免左上角圖例遮住K棒。
+      const maItems=[["月線","month","#2c7fb8"],["季線","quarter","#7a51b8"],["半年線","half","#d08a2e"],["年線","year","#4a7c59"]];
+      if(!mobile){
+        const lgX=plotX+8, lgY=plotY+8, lgW=104, lgH=88;
+        ctx.save();ctx.fillStyle="rgba(255,255,255,.76)";ctx.strokeStyle="rgba(31,44,65,.18)";rr(ctx,lgX,lgY,lgW,lgH,10);ctx.fill();ctx.stroke();
+        ctx.font="900 13px 'Noto Sans TC', sans-serif";ctx.textAlign="left";ctx.textBaseline="middle";
+        maItems.forEach(([t,k,c],i)=>{const y=lgY+16+i*18;ctx.strokeStyle=c;ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(lgX+8,y);ctx.lineTo(lgX+30,y);ctx.stroke();ctx.fillStyle="#17233c";ctx.fillText(t,lgX+36,y);});ctx.restore();
       }
+      function smallTag(x,y,text,color){
+        ctx.save();
+        ctx.font=(mobile?"900 10px":"900 12px")+" 'Noto Sans TC', sans-serif";
+        const w=Math.min(mobile?44:58,ctx.measureText(text).width+12), h=mobile?17:20;
+        rr(ctx,x,y-h/2,w,h,8); ctx.fillStyle="rgba(255,255,255,.70)"; ctx.strokeStyle=color; ctx.lineWidth=1.1; ctx.fill(); ctx.stroke();
+        ctx.fillStyle=color; ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText(text,x+w/2,y,w-6); ctx.restore();
+      }
+      const rightIndex=clamp(Math.floor(((visibleRight-plotX)/Math.max(plotW,1))*Math.max(totalSlots-1,1)),0,data.length-1);
+      maItems.forEach(([t,key,color])=>{
+        let j=Math.min(rightIndex,data.length-1); while(j>=0 && !Number.isFinite(data[j][key])) j--;
+        if(j<0) return;
+        const y=clamp(yOf(data[j][key]),plotY+12,plotY+plotH-12);
+        const x=clamp(xOf(j)+4, visibleLeft+8, visibleRight-(mobile?50:64));
+        smallTag(x,y,t,color);
+      });
+
+      // 條件價格標籤：固定在目前可視窗右側，小字顯示；左右滑動時仍看得到數字，且不會壓在K線主體上。
+      const labelH=mobile?20:24;
+      const labelW=mobile?112:156;
+      const futureLabelX = clamp(visibleRight - labelW - 8, plotX+6, plotX+plotW-labelW-6);
+      const conds=[
+        {y:koY, text:`出場 ${lv.ko.toFixed(2)}`, color:"#8e2530"},
+        {y:strikeY, text:`執行 ${lv.strike.toFixed(2)}`, color:"#227da0"},
+      ];
+      if(lv.hasBarrier) conds.push({y:barrierY, text:`保護傘 ${lv.barrier.toFixed(2)}`, color:"#2d9ec0"});
+      else conds.push({y:plotY+plotH-(mobile?50:60), text:`保護傘 無`, color:"#2d9ec0"});
+      const sorted=conds.map(c=>({...c,y0:clamp(c.y-labelH/2,plotY+4,plotY+plotH-labelH-4)})).sort((a,b)=>a.y0-b.y0);
+      for(let i=1;i<sorted.length;i++) if(sorted[i].y0 < sorted[i-1].y0 + labelH + 4) sorted[i].y0 = sorted[i-1].y0 + labelH + 4;
+      const overflow = sorted.length ? sorted[sorted.length-1].y0 + labelH + 4 - (plotY+plotH) : 0;
+      if(overflow>0) sorted.forEach(c=>c.y0-=overflow);
+      sorted.forEach(c=>pill(ctx, futureLabelX, c.y0, labelW, labelH, c.text, c.color, "rgba(255,255,255,.82)", mobile?"900 10px 'Noto Sans TC'":"900 12px 'Noto Sans TC'"));
 
       // vertical date lines
       function vLine(x,color){ctx.save();ctx.strokeStyle=color;ctx.setLineDash([3,5]);ctx.lineWidth=1.8;ctx.beginPath();ctx.moveTo(x,plotY);ctx.lineTo(x,volY+volH);ctx.stroke();ctx.restore();}
@@ -547,6 +573,8 @@
 
     // events
     canvas.addEventListener("click",e=>{const rect=canvas.getBoundingClientRect();const x=e.clientX-rect.left,y=e.clientY-rect.top;let hit=hitAreas.find(a=>x>=a.x&&x<=a.x+a.w&&y>=a.y&&y<=a.y+a.h);if(!hit){let best=null,dist=1e9;hitAreas.forEach(a=>{const cx=a.x+a.w/2;const d=Math.abs(cx-x);if(y>=a.y&&y<=a.y+a.h&&d<dist){dist=d;best=a;}});hit=best;} if(hit)updateDetail(hit.index);});
+    let scrollDrawFrame=0;
+    flatScroll.addEventListener("scroll",()=>{ if(scrollDrawFrame) return; scrollDrawFrame=requestAnimationFrame(()=>{scrollDrawFrame=0; drawFlat();}); }, {passive:true});
     $("dateSelect").addEventListener("change",e=>selectNearestDate(e.target.value));
     $("modeToggle").addEventListener("click", async ()=>{viewMode=viewMode==="flat"?"3d":"flat";document.body.classList.toggle("three-mode",viewMode==="3d");$("modeToggle").textContent=viewMode==="3d"?"回到平面圖":"切換 3D 圖";if(viewMode==="3d"){try{await initThree();setTimeout(()=>{resizeThree();rebuildThree();},80);}catch(err){alert("3D 模組載入失敗，平面圖仍可使用。請確認網路可連到 three.js CDN。");viewMode="flat";document.body.classList.remove("three-mode");$("modeToggle").textContent="切換 3D 圖";}}else{resizeCanvas();}});
     $("fcnToggle").addEventListener("click",()=>$("fcnDrawer").classList.toggle("open"));
