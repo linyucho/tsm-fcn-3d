@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>TSM 台積電 ADR｜3D K 線＋均線＋成交量＋FCN 條件</title>
+  <title>TSM 台積電 ADR｜3D K 線 V2 自動更新版</title>
   <meta name="description" content="TSM 台積電 ADR 3D K線互動頁，標示 MA5/MA20/MA60、成交量、FCN KO/K/AKI 條件，支援手機雙指縮放。" />
   <style>
     :root {
@@ -326,6 +326,116 @@
       .help { display: none; }
       .legend { gap: 8px; }
     }
+
+
+    /* V2 修正：避免文字面板蓋住 K 線圖 */
+    .hud {
+      max-height: 66px;
+      overflow: hidden;
+      transition: max-height .22s ease, width .22s ease, background .22s ease;
+    }
+
+    .hud.open {
+      width: min(452px, calc(100vw - 32px));
+      max-height: min(76vh, 560px);
+      overflow: auto;
+      background: rgba(8, 14, 30, .82);
+    }
+
+    .hud:not(.open) .subtitle,
+    .hud:not(.open) .priceBox,
+    .hud:not(.open) .buttons,
+    .hud:not(.open) .legend,
+    .hud:not(.open) .help {
+      display: none;
+    }
+
+    .miniToggle {
+      border-radius: 999px;
+      padding: 7px 10px;
+      font-size: 12px;
+      background: rgba(255,255,255,.11);
+      white-space: nowrap;
+    }
+
+    .rightPanel {
+      transform: translateX(calc(100% + 32px));
+      opacity: 0;
+      pointer-events: none;
+      transition: transform .22s ease, opacity .22s ease;
+      max-height: min(84vh, 620px);
+      overflow: auto;
+    }
+
+    .rightPanel.open {
+      transform: translateX(0);
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .panelHead {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+
+    .panelHead h2 { margin: 0; }
+
+    .floatingTools {
+      position: fixed;
+      left: max(16px, env(safe-area-inset-left));
+      bottom: max(16px, env(safe-area-inset-bottom));
+      z-index: 11;
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .floatingTools button {
+      background: rgba(255, 209, 102, .96);
+      color: #08101f;
+      border-color: rgba(255, 209, 102, 1);
+      box-shadow: 0 12px 32px rgba(0,0,0,.28);
+    }
+
+    .dataWarning {
+      position: fixed;
+      left: 50%;
+      transform: translateX(-50%);
+      bottom: max(18px, env(safe-area-inset-bottom));
+      width: min(680px, calc(100vw - 32px));
+      z-index: 8;
+      padding: 10px 14px;
+      border-radius: 16px;
+      background: rgba(255, 159, 28, .15);
+      border: 1px solid rgba(255, 209, 102, .32);
+      color: rgba(255,255,255,.82);
+      font-size: 12px;
+      line-height: 1.5;
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      display: none;
+    }
+
+    @media (max-width: 980px) {
+      .rightPanel {
+        top: auto;
+        bottom: max(74px, env(safe-area-inset-bottom));
+        width: min(452px, calc(100vw - 32px));
+      }
+      .hud.open { max-height: min(62vh, 520px); }
+    }
+
+    @media (max-width: 760px) {
+      .hud { max-height: 60px; width: min(330px, calc(100vw - 32px)); }
+      .titleRow { align-items: center; }
+      .badge { display: none; }
+      .rightPanel.open { max-height: min(58vh, 520px); }
+      .dataWarning { bottom: 70px; }
+    }
+
   </style>
 
   <script type="importmap">
@@ -341,13 +451,14 @@
 <body>
   <div id="stage"></div>
 
-  <section class="hud">
+  <section class="hud" id="hudPanel">
     <div class="titleRow">
       <div>
         <h1>TSM 台積電 ADR｜3D K 線</h1>
         <div class="subtitle">已標示 MA5 / MA20 / MA60、成交量、20 日均量，以及 FCN 價格條件。</div>
       </div>
       <div class="badge"><i class="dot"></i><span id="sourceBadge">讀取中</span></div>
+      <button id="hudToggle" class="miniToggle" type="button">展開資訊</button>
     </div>
 
     <div class="priceBox">
@@ -387,8 +498,8 @@
     </div>
   </section>
 
-  <aside class="rightPanel">
-    <h2>FCN 條件標示區</h2>
+  <aside class="rightPanel" id="fcnPanel">
+    <div class="panelHead"><h2>FCN 條件標示區</h2><button id="closeFcnPanel" class="miniToggle" type="button">收合</button></div>
     <div class="note">
       目前示意：7 個月、美元計價、年化配息 12%、KO 100%、履約價 K 75%、敲入/下限 AKI 60%、第 1 個月後觀察、Daily Memory KO。正式對客戶說明時，請以商品 termsheet 為準。
     </div>
@@ -426,6 +537,11 @@
     </div>
   </aside>
 
+  <div class="floatingTools">
+    <button id="openInfoPanel" type="button">資訊面板</button>
+    <button id="openFcnPanel" type="button">FCN 條件</button>
+  </div>
+  <div class="dataWarning" id="dataWarning"></div>
   <div class="loading" id="loading">正在建立 TSM 3D K 線模型...</div>
   <div id="tooltip"></div>
 
@@ -451,6 +567,10 @@
     const fcnKEl = document.getElementById("fcnK");
     const fcnAKIEl = document.getElementById("fcnAKI");
     const fcnInitialInput = document.getElementById("fcnInitialInput");
+    const hudPanel = document.getElementById("hudPanel");
+    const hudToggle = document.getElementById("hudToggle");
+    const fcnPanel = document.getElementById("fcnPanel");
+    const dataWarning = document.getElementById("dataWarning");
 
     const FCN = {
       tenorMonths: 7,
@@ -867,26 +987,40 @@
       controls.update();
     }
 
+
+    function setDataWarning(message) {
+      if (!message) {
+        dataWarning.style.display = "none";
+        dataWarning.textContent = "";
+        return;
+      }
+      dataWarning.style.display = "block";
+      dataWarning.textContent = message;
+    }
+
     async function loadRange(range) {
       currentRange = range;
       loading.style.display = "grid";
       sourceBadge.textContent = "讀取中";
+      setDataWarning("");
       try {
         const local = await fetchLocalData(range);
         const tag = local.updatedAt ? `自動更新 ${local.updatedAt}` : "自動更新資料";
         renderCandles(local.rows, tag);
+        setDataWarning("");
         return;
       } catch (localErr) {
         console.warn(localErr);
+        setDataWarning(`尚未讀到 data/tsm-${range}.json。請到 GitHub Actions 手動執行「Update TSM ADR data」，成功後再重新整理。本頁目前會先顯示備援資料。`);
       }
 
       try {
         const data = await fetchYahoo(range);
-        renderCandles(data, "Yahoo 即時讀取");
+        renderCandles(data, "Yahoo 即時讀取｜建議仍設定 GitHub Actions");
       } catch (err) {
         console.warn(err);
         const fallbackCounts = { "1mo": 24, "3mo": 64, "6mo": 110, "1y": 190 };
-        renderCandles(fallbackData(fallbackCounts[range] || 110), "示範資料");
+        renderCandles(fallbackData(fallbackCounts[range] || 110), "示範資料｜未讀到自動更新檔");
       }
     }
 
@@ -903,6 +1037,16 @@
         loadRange(btn.dataset.range);
       });
     });
+
+    function setHudOpen(open) {
+      hudPanel.classList.toggle("open", open);
+      hudToggle.textContent = open ? "收合資訊" : "展開資訊";
+    }
+
+    hudToggle.addEventListener("click", () => setHudOpen(!hudPanel.classList.contains("open")));
+    document.getElementById("openInfoPanel").addEventListener("click", () => setHudOpen(true));
+    document.getElementById("openFcnPanel").addEventListener("click", () => fcnPanel.classList.add("open"));
+    document.getElementById("closeFcnPanel").addEventListener("click", () => fcnPanel.classList.remove("open"));
 
     document.getElementById("resetView").addEventListener("click", resetCamera);
     document.getElementById("applyFcn").addEventListener("click", () => {
