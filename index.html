@@ -430,7 +430,7 @@
   <div id="tooltip"></div>
 
   <div class="footnote">
-    資料說明：本頁會優先嘗試讀取 Yahoo Finance chart API 的 TSM 日 K 資料；若瀏覽器或網路阻擋，會自動切換內建示範資料。本頁僅供視覺化與教學展示，不構成投資建議或商品銷售文件。
+    資料說明：本頁會優先讀取 GitHub Actions 每日自動更新的 TSM ADR 日 K 資料；若尚未產生資料檔，才嘗試瀏覽器連線 Yahoo Finance；若仍失敗，會自動切換內建示範資料。本頁僅供視覺化與教學展示，不構成投資建議或商品銷售文件。
   </div>
 
   <script type="module">
@@ -533,6 +533,26 @@
     function formatDate(ts) {
       const d = new Date(ts * 1000);
       return d.toLocaleDateString("zh-TW", { year: "numeric", month: "2-digit", day: "2-digit" });
+    }
+
+
+    async function fetchLocalData(range = "6mo") {
+      const url = `data/tsm-${range}.json?updated=${Date.now()}`;
+      const res = await fetch(url, { cache: "no-store" });
+      if (!res.ok) throw new Error("本機自動更新資料尚未建立");
+      const json = await res.json();
+      const rows = json?.rows || [];
+      const clean = rows.map(d => ({
+        time: d.time,
+        date: d.date,
+        open: Number(d.open),
+        high: Number(d.high),
+        low: Number(d.low),
+        close: Number(d.close),
+        volume: Number(d.volume)
+      })).filter(d => Number.isFinite(d.open) && Number.isFinite(d.high) && Number.isFinite(d.low) && Number.isFinite(d.close));
+      if (clean.length < 10) throw new Error("本機自動更新資料有效筆數太少");
+      return { rows: clean, updatedAt: json.updatedAt || "" };
     }
 
     async function fetchYahoo(range = "6mo") {
@@ -852,8 +872,17 @@
       loading.style.display = "grid";
       sourceBadge.textContent = "讀取中";
       try {
+        const local = await fetchLocalData(range);
+        const tag = local.updatedAt ? `自動更新 ${local.updatedAt}` : "自動更新資料";
+        renderCandles(local.rows, tag);
+        return;
+      } catch (localErr) {
+        console.warn(localErr);
+      }
+
+      try {
         const data = await fetchYahoo(range);
-        renderCandles(data, "Yahoo 連線");
+        renderCandles(data, "Yahoo 即時讀取");
       } catch (err) {
         console.warn(err);
         const fallbackCounts = { "1mo": 24, "3mo": 64, "6mo": 110, "1y": 190 };
