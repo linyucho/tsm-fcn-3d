@@ -93,7 +93,7 @@
     <header>
       <h1>台積電 ADR｜FCN / ELN 條件圖</h1>
       <div class="sub" id="sourceLine">資料讀取中｜平面圖為主要檢視畫面，可切換 3D 輔助展示</div>
-      <div class="modeNotice">手機版先顯示平面圖：時間軸一次約半年，可左右滑動；選日期可連動資料卡。</div>
+      <div class="modeNotice">手機版先顯示平面圖：一次約半年，可左右滑動；選日期會連動資料卡。</div>
     </header>
 
     <section id="flatView">
@@ -147,12 +147,22 @@
   </div>
 
   <script type="module">
+    window.addEventListener("error", (event) => {
+      const card = document.getElementById("detailCard");
+      if (card) {
+        card.innerHTML = `<div class="detailTitle">圖表載入錯誤</div><div class="detailSub">${String(event.message || "未知錯誤")}</div>`;
+      }
+    });
     let THREE, OrbitControls;
 
     const $ = id => document.getElementById(id);
     const canvas = $("flatCanvas");
     const ctx = canvas.getContext("2d");
     const chartShell = $("chartShell");
+    const flatScroll = $("flatScroll");
+    const visibleHalfYearSlots = 126; // 約半年交易日，手機直式一個畫面顯示這段期間
+    let lastFlatMetrics = null;
+    let shouldAutoScrollLatest = true;
     let rawRows = [];
     let masterRows = [];
     let displayRows = [];
@@ -288,7 +298,7 @@
     function drawFlat(){
       if(!displayRows.length) return;
       const W = canvas.clientWidth, H = canvas.clientHeight;
-      const mobile = W < 700;
+      const mobile = (flatScroll?.clientWidth || W) < 700;
       const data = displayRows;
       const lv = levels();
       const latest = data[data.length-1];
@@ -509,7 +519,7 @@
         ds.value = String(displayRows[displayRows.length-1].date||"").replaceAll("/","-");
       }
       shouldAutoScrollLatest = true;
-      drawFlat();
+      resizeCanvas();
       rebuildThree();
     }
 
