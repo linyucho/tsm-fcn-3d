@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>TSM 台積電 ADR｜3D K 線 V2 自動更新版</title>
-  <meta name="description" content="TSM 台積電 ADR 3D K線互動頁，標示 MA5/MA20/MA60、成交量、FCN KO/K/AKI 條件，支援手機雙指縮放。" />
+  <title>TSM 台積電 ADR｜3D K 線 V2 V2 自動更新版</title>
+  <meta name="description" content="TSM 台積電 ADR 3D K線互動頁，支援手機點選單根K棒顯示開高低收，並可輸入FCN條件自動更新KO/K/AKI標示。" />
   <style>
     :root {
       --bg: #080d1a;
@@ -277,6 +277,126 @@
     }
     #tooltip b { font-size: 14px; }
 
+    /* V3：手機點選單根 K 棒的詳細資訊抽屜 */
+    #detailDrawer {
+      position: fixed;
+      left: 50%;
+      bottom: max(14px, env(safe-area-inset-bottom));
+      transform: translate(-50%, calc(100% + 28px));
+      z-index: 13;
+      width: min(560px, calc(100vw - 24px));
+      max-height: min(54vh, 430px);
+      overflow: auto;
+      padding: 14px;
+      border-radius: 24px;
+      border: 1px solid rgba(255,255,255,.16);
+      background: rgba(6, 10, 22, .92);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+      box-shadow: 0 22px 70px rgba(0,0,0,.44);
+      transition: transform .22s ease;
+    }
+
+    #detailDrawer.open { transform: translate(-50%, 0); }
+
+    .drawerHead {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px;
+      margin-bottom: 10px;
+    }
+
+    .drawerTitle {
+      font-size: 17px;
+      font-weight: 820;
+      line-height: 1.35;
+    }
+
+    .drawerSub {
+      margin-top: 3px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .detailGrid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 9px;
+    }
+
+    .detailItem {
+      padding: 11px;
+      border-radius: 16px;
+      background: rgba(255,255,255,.075);
+      border: 1px solid rgba(255,255,255,.10);
+    }
+
+    .detailItem .k { color: var(--muted); font-size: 12px; margin-bottom: 4px; }
+    .detailItem .v { font-size: 18px; font-weight: 850; }
+    .detailItem.big { grid-column: 1 / -1; }
+    .detailStatus { color: rgba(255,255,255,.78); font-size: 13px; line-height: 1.5; }
+
+    .navRow {
+      display: flex;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .navRow button { flex: 1; }
+
+    .inputGrid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 9px;
+      margin-top: 10px;
+    }
+
+    .field label {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+      margin: 0 0 5px 3px;
+    }
+
+    .field.full { grid-column: 1 / -1; }
+
+    select {
+      width: 100%;
+      border: 1px solid rgba(255,255,255,.16);
+      background: rgba(255,255,255,.09);
+      color: var(--text);
+      border-radius: 13px;
+      padding: 10px 11px;
+      font-size: 13px;
+      outline: none;
+    }
+
+    .tapHint {
+      position: fixed;
+      left: 50%;
+      top: max(82px, calc(env(safe-area-inset-top) + 82px));
+      transform: translateX(-50%);
+      z-index: 8;
+      padding: 8px 12px;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,.11);
+      background: rgba(0,0,0,.30);
+      color: rgba(255,255,255,.68);
+      font-size: 12px;
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      pointer-events: none;
+    }
+
+    @media (max-width: 760px) {
+      .inputGrid { grid-template-columns: 1fr; }
+      .detailGrid { grid-template-columns: 1fr 1fr; }
+      #detailDrawer { bottom: max(10px, env(safe-area-inset-bottom)); }
+      .tapHint { top: auto; bottom: max(72px, env(safe-area-inset-bottom)); }
+    }
+
+
     .footnote {
       position: fixed;
       right: max(14px, env(safe-area-inset-right));
@@ -494,19 +614,54 @@
     </div>
 
     <div class="help">
-      電腦：滑鼠拖曳旋轉、滾輪縮放、右鍵平移。手機：一指旋轉、雙指放大縮小、雙指拖曳平移。點到 K 棒可看開高低收、均線、成交量與 FCN 狀態。
+      電腦：滑鼠拖曳旋轉、滾輪縮放。手機：一指旋轉、雙指放大縮小。點一下單根 K 棒，底部會跳出開盤、最高、最低、收盤、漲跌、均線、成交量與 FCN 狀態。
     </div>
   </section>
 
   <aside class="rightPanel" id="fcnPanel">
     <div class="panelHead"><h2>FCN 條件標示區</h2><button id="closeFcnPanel" class="miniToggle" type="button">收合</button></div>
-    <div class="note">
-      目前示意：7 個月、美元計價、年化配息 12%、KO 100%、履約價 K 75%、敲入/下限 AKI 60%、第 1 個月後觀察、Daily Memory KO。正式對客戶說明時，請以商品 termsheet 為準。
+    <div class="note" id="fcnNote">
+      可直接輸入 FCN 條件。按「套用」後，3D 圖中的 KO、履約價 K、AKI 水平線會立即重新計算與移動；點選任一 K 棒，也會同步顯示該日收盤價相對於 FCN 條件的位置。
     </div>
 
-    <div class="inputRow">
-      <input id="fcnInitialInput" type="number" step="0.01" placeholder="可輸入 FCN 初始價，例如 300" />
-      <button id="applyFcn">套用</button>
+    <div class="inputGrid">
+      <div class="field full">
+        <label>FCN 初始價 S0，留空則用區間第一天收盤價</label>
+        <input id="fcnInitialInput" type="number" step="0.01" placeholder="例如 300" />
+      </div>
+      <div class="field">
+        <label>天期（月）</label>
+        <input id="fcnTenorInput" type="number" step="1" min="1" value="7" />
+      </div>
+      <div class="field">
+        <label>年化配息（%）</label>
+        <input id="fcnCouponInput" type="number" step="0.01" min="0" value="12" />
+      </div>
+      <div class="field">
+        <label>KO 提前出場（%）</label>
+        <input id="fcnKoInput" type="number" step="0.01" min="0" value="100" />
+      </div>
+      <div class="field">
+        <label>履約價 K（%）</label>
+        <input id="fcnStrikeInput" type="number" step="0.01" min="0" value="75" />
+      </div>
+      <div class="field">
+        <label>敲入 / 下限 AKI（%）</label>
+        <input id="fcnAkiInput" type="number" step="0.01" min="0" value="60" />
+      </div>
+      <div class="field">
+        <label>第幾個月後觀察</label>
+        <input id="fcnObsInput" type="number" step="1" min="1" value="1" />
+      </div>
+      <div class="field full">
+        <label>KO 型態</label>
+        <select id="fcnMemoryInput">
+          <option value="Daily Memory KO" selected>Daily Memory KO</option>
+          <option value="Monthly Observation KO">Monthly Observation KO</option>
+          <option value="No Memory KO">No Memory KO</option>
+        </select>
+      </div>
+      <button id="applyFcn" class="field full" type="button">套用 FCN 條件並更新 3D 圖</button>
     </div>
 
     <div class="fcnBox">
@@ -531,7 +686,7 @@
         <div class="value" id="fcnAKI">--</div>
       </div>
       <div class="metric">
-        <div class="label">7 個月滿期配息示意</div>
+        <div class="label" id="fcnTotalCouponLabel">滿期配息示意</div>
         <div class="value" id="fcnTotalCoupon">約 7%</div>
       </div>
     </div>
@@ -544,6 +699,22 @@
   <div class="dataWarning" id="dataWarning"></div>
   <div class="loading" id="loading">正在建立 TSM 3D K 線模型...</div>
   <div id="tooltip"></div>
+  <div class="tapHint">點一下任一 K 棒，可固定顯示該日開高低收</div>
+
+  <section id="detailDrawer" aria-live="polite">
+    <div class="drawerHead">
+      <div>
+        <div class="drawerTitle" id="drawerTitle">請點選一根 K 棒</div>
+        <div class="drawerSub" id="drawerSub">會顯示該日開高低收、均線、成交量與 FCN 狀態</div>
+      </div>
+      <button id="closeDrawer" class="miniToggle" type="button">關閉</button>
+    </div>
+    <div class="detailGrid" id="detailGrid"></div>
+    <div class="navRow">
+      <button id="prevCandle" type="button">上一根</button>
+      <button id="nextCandle" type="button">下一根</button>
+    </div>
+  </section>
 
   <div class="footnote">
     資料說明：本頁會優先讀取 GitHub Actions 每日自動更新的 TSM ADR 日 K 資料；若尚未產生資料檔，才嘗試瀏覽器連線 Yahoo Finance；若仍失敗，會自動切換內建示範資料。本頁僅供視覺化與教學展示，不構成投資建議或商品銷售文件。
@@ -556,6 +727,10 @@
     const container = document.getElementById("stage");
     const loading = document.getElementById("loading");
     const tooltip = document.getElementById("tooltip");
+    const detailDrawer = document.getElementById("detailDrawer");
+    const detailGrid = document.getElementById("detailGrid");
+    const drawerTitle = document.getElementById("drawerTitle");
+    const drawerSub = document.getElementById("drawerSub");
 
     const sourceBadge = document.getElementById("sourceBadge");
     const lastPriceEl = document.getElementById("lastPrice");
@@ -567,6 +742,13 @@
     const fcnKEl = document.getElementById("fcnK");
     const fcnAKIEl = document.getElementById("fcnAKI");
     const fcnInitialInput = document.getElementById("fcnInitialInput");
+    const fcnTenorInput = document.getElementById("fcnTenorInput");
+    const fcnCouponInput = document.getElementById("fcnCouponInput");
+    const fcnKoInput = document.getElementById("fcnKoInput");
+    const fcnStrikeInput = document.getElementById("fcnStrikeInput");
+    const fcnAkiInput = document.getElementById("fcnAkiInput");
+    const fcnObsInput = document.getElementById("fcnObsInput");
+    const fcnMemoryInput = document.getElementById("fcnMemoryInput");
     const hudPanel = document.getElementById("hudPanel");
     const hudToggle = document.getElementById("hudToggle");
     const fcnPanel = document.getElementById("fcnPanel");
@@ -578,12 +760,52 @@
       koPct: 1.00,
       strikePct: 0.75,
       akiPct: 0.60,
+      observationAfterMonth: 1,
+      koType: "Daily Memory KO",
       customInitial: null
     };
 
     let currentData = [];
     let currentSource = "";
     let currentRange = "6mo";
+    let selectedCandleIndex = -1;
+    let selectedMarker = null;
+    let pointerDownInfo = null;
+
+
+
+    function loadSavedFcn() {
+      try {
+        const saved = JSON.parse(localStorage.getItem("tsmFncConfigV3") || "null");
+        if (!saved) return;
+        if (Number.isFinite(saved.customInitial)) FCN.customInitial = saved.customInitial;
+        if (Number.isFinite(saved.tenorMonths)) FCN.tenorMonths = saved.tenorMonths;
+        if (Number.isFinite(saved.couponAnnual)) FCN.couponAnnual = saved.couponAnnual;
+        if (Number.isFinite(saved.koPct)) FCN.koPct = saved.koPct;
+        if (Number.isFinite(saved.strikePct)) FCN.strikePct = saved.strikePct;
+        if (Number.isFinite(saved.akiPct)) FCN.akiPct = saved.akiPct;
+        if (Number.isFinite(saved.observationAfterMonth)) FCN.observationAfterMonth = saved.observationAfterMonth;
+        if (saved.koType) FCN.koType = saved.koType;
+      } catch (e) { console.warn(e); }
+    }
+
+    function syncFcnInputs() {
+      fcnInitialInput.value = Number.isFinite(FCN.customInitial) ? FCN.customInitial.toFixed(2) : "";
+      fcnTenorInput.value = FCN.tenorMonths;
+      fcnCouponInput.value = (FCN.couponAnnual * 100).toFixed(2).replace(/\.00$/, "");
+      fcnKoInput.value = (FCN.koPct * 100).toFixed(2).replace(/\.00$/, "");
+      fcnStrikeInput.value = (FCN.strikePct * 100).toFixed(2).replace(/\.00$/, "");
+      fcnAkiInput.value = (FCN.akiPct * 100).toFixed(2).replace(/\.00$/, "");
+      fcnObsInput.value = FCN.observationAfterMonth;
+      fcnMemoryInput.value = FCN.koType;
+    }
+
+    function saveFcn() {
+      localStorage.setItem("tsmFncConfigV3", JSON.stringify(FCN));
+    }
+
+    loadSavedFcn();
+    syncFcnInputs();
 
     const scene = new THREE.Scene();
     scene.fog = new THREE.Fog(0x080d1a, 76, 190);
@@ -877,15 +1099,17 @@
       fcnKOEl.textContent = formatUSD(lv.ko);
       fcnKEl.textContent = formatUSD(lv.strike);
       fcnAKIEl.textContent = formatUSD(lv.aki);
-      document.getElementById("fcnCoupon").textContent = `${(FCN.couponAnnual * 100).toFixed(0)}% / ${(lv.couponMonthly * 100).toFixed(2)}%`;
+      document.getElementById("fcnCoupon").textContent = `${(FCN.couponAnnual * 100).toFixed(2).replace(/\.00$/, "")}% / ${(lv.couponMonthly * 100).toFixed(2)}%`;
       document.getElementById("fcnTotalCoupon").textContent = `約 ${(lv.totalCoupon * 100).toFixed(2)}%`;
+      document.getElementById("fcnTotalCouponLabel").textContent = `${FCN.tenorMonths} 個月滿期配息示意`;
+      document.getElementById("fcnNote").textContent = `目前條件：${FCN.tenorMonths} 個月、美元計價、年化配息 ${(FCN.couponAnnual * 100).toFixed(2).replace(/\.00$/, "")}%、KO ${(FCN.koPct * 100).toFixed(2).replace(/\.00$/, "")}%、履約價 K ${(FCN.strikePct * 100).toFixed(2).replace(/\.00$/, "")}%、敲入/下限 AKI ${(FCN.akiPct * 100).toFixed(2).replace(/\.00$/, "")}%、第 ${FCN.observationAfterMonth} 個月後觀察、${FCN.koType}。`;
     }
 
     function fcnStatus(close, lv) {
       if (!Number.isFinite(close)) return "--";
-      if (close >= lv.ko) return "高於 KO 100%：若逢觀察日，可能提前出場";
-      if (close <= lv.aki) return "低於 AKI 60%：進入敲入/下限風險區";
-      if (close <= lv.strike) return "低於履約價 K 75%：滿期需特別留意接股/現金結算風險";
+      if (close >= lv.ko) return `高於 KO ${(FCN.koPct * 100).toFixed(2).replace(/\.00$/, "")}%：若逢觀察日，可能提前出場`;
+      if (close <= lv.aki) return `低於 AKI ${(FCN.akiPct * 100).toFixed(2).replace(/\.00$/, "")}%：進入敲入/下限風險區`;
+      if (close <= lv.strike) return `低於履約價 K ${(FCN.strikePct * 100).toFixed(2).replace(/\.00$/, "")}%：滿期需特別留意接股/現金結算風險`;
       return "介於 K 與 KO 之間：尚未達 KO，仍高於履約價";
     }
 
@@ -895,6 +1119,8 @@
       data = addIndicators(data);
       currentData = data;
       currentSource = sourceText;
+      selectedCandleIndex = -1;
+      detailDrawer.classList.remove("open");
       updateFcnPanel(data);
       const lv = fcnLevels(data);
 
@@ -934,21 +1160,30 @@
         const bodyHeight = Math.max(Math.abs(closeY - openY), 0.16);
         const body = new THREE.Mesh(new THREE.BoxGeometry(candleWidth, bodyHeight, candleDepth), mat);
         body.position.set(x, (openY + closeY) / 2, 0);
-        body.userData = { candle: d, isUp };
+        body.userData = { candle: d, isUp, index: i };
         root.add(body);
         interactiveMeshes.push(body);
 
         const wickHeight = Math.max(highY - lowY, 0.13);
         const wick = new THREE.Mesh(new THREE.CylinderGeometry(Math.max(0.022, candleWidth * .07), Math.max(0.022, candleWidth * .07), wickHeight, 10), mat);
         wick.position.set(x, (highY + lowY) / 2, 0);
-        wick.userData = { candle: d, isUp };
+        wick.userData = { candle: d, isUp, index: i };
         root.add(wick);
         interactiveMeshes.push(wick);
+
+        // V3：加大手機觸控命中範圍。透明 hitbox 不顯示，但可以讓手指比較容易點到單根 K 棒。
+        const hitMat = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false, colorWrite: false });
+        const hitHeight = Math.max(highY - lowY + 1.2, 2.8);
+        const hitBox = new THREE.Mesh(new THREE.BoxGeometry(Math.max(candleWidth * 1.65, 0.52), hitHeight, Math.max(candleDepth * 3.1, 0.9)), hitMat);
+        hitBox.position.set(x, (highY + lowY) / 2, 0);
+        hitBox.userData = { candle: d, isUp, index: i, hitBox: true };
+        root.add(hitBox);
+        interactiveMeshes.push(hitBox);
 
         const volHeight = ((d.volume || 0) / volumeMax) * 5.8 + .14;
         const vol = new THREE.Mesh(new THREE.BoxGeometry(candleWidth * .80, volHeight, candleDepth * .85), isUp ? volUpMat : volDownMat);
         vol.position.set(x, volHeight / 2, 4.85);
-        vol.userData = { candle: d, isUp, volumeBar: true };
+        vol.userData = { candle: d, isUp, index: i, volumeBar: true };
         root.add(vol);
         interactiveMeshes.push(vol);
         volumeTopPoints.push(new THREE.Vector3(x, volHeight, 4.85));
@@ -972,10 +1207,10 @@
       makeLabel("成交量 Volume：柱越高代表當日交易量越大", new THREE.Vector3((startX + xEnd) / 2, 7.2, 6.0), .83, .82, "#ffffff");
 
       addAxisAndLabels(data, priceToY, startX, spacing, minPrice, maxPrice, xEnd);
-      makeDashedLevel(startX, xEnd, priceToY(lv.ko), -3.85, colors.ko, "FCN KO 100%", lv.ko);
-      makeDashedLevel(startX, xEnd, priceToY(lv.strike), -4.10, colors.strike, "履約價 K 75%", lv.strike);
-      makeDashedLevel(startX, xEnd, priceToY(lv.aki), -4.35, colors.aki, "敲入/下限 AKI 60%", lv.aki);
-      makeLabel("FCN：年化12%｜7個月｜第1個月後觀察｜Daily Memory KO", new THREE.Vector3((startX + xEnd) / 2, priceToY(maxPrice) + 1.8, -4.0), .92, .84, "#ffd166");
+      makeDashedLevel(startX, xEnd, priceToY(lv.ko), -3.85, colors.ko, `FCN KO ${(FCN.koPct * 100).toFixed(2).replace(/\.00$/, "")}%`, lv.ko);
+      makeDashedLevel(startX, xEnd, priceToY(lv.strike), -4.10, colors.strike, `履約價 K ${(FCN.strikePct * 100).toFixed(2).replace(/\.00$/, "")}%`, lv.strike);
+      makeDashedLevel(startX, xEnd, priceToY(lv.aki), -4.35, colors.aki, `敲入/下限 AKI ${(FCN.akiPct * 100).toFixed(2).replace(/\.00$/, "")}%`, lv.aki);
+      makeLabel(`FCN：年化${(FCN.couponAnnual*100).toFixed(2).replace(/\.00$/, "")}%｜${FCN.tenorMonths}個月｜第${FCN.observationAfterMonth}個月後觀察｜${FCN.koType}`, new THREE.Vector3((startX + xEnd) / 2, priceToY(maxPrice) + 1.8, -4.0), .92, .84, "#ffd166");
 
       const latest = data[data.length - 1];
       sourceBadge.textContent = sourceText;
@@ -1051,22 +1286,138 @@
     document.getElementById("resetView").addEventListener("click", resetCamera);
     document.getElementById("applyFcn").addEventListener("click", () => {
       const v = Number(fcnInitialInput.value);
+      const tenor = Number(fcnTenorInput.value);
+      const coupon = Number(fcnCouponInput.value);
+      const ko = Number(fcnKoInput.value);
+      const strike = Number(fcnStrikeInput.value);
+      const aki = Number(fcnAkiInput.value);
+      const obs = Number(fcnObsInput.value);
+
       FCN.customInitial = Number.isFinite(v) && v > 0 ? v : null;
-      if (currentData.length) renderCandles(currentData, currentSource || "目前資料");
+      FCN.tenorMonths = Number.isFinite(tenor) && tenor > 0 ? Math.round(tenor) : 7;
+      FCN.couponAnnual = Number.isFinite(coupon) && coupon >= 0 ? coupon / 100 : 0.12;
+      FCN.koPct = Number.isFinite(ko) && ko > 0 ? ko / 100 : 1.00;
+      FCN.strikePct = Number.isFinite(strike) && strike > 0 ? strike / 100 : 0.75;
+      FCN.akiPct = Number.isFinite(aki) && aki > 0 ? aki / 100 : 0.60;
+      FCN.observationAfterMonth = Number.isFinite(obs) && obs > 0 ? Math.round(obs) : 1;
+      FCN.koType = fcnMemoryInput.value || "Daily Memory KO";
+      saveFcn();
+      syncFcnInputs();
+
+      if (currentData.length) {
+        renderCandles(currentData, currentSource || "目前資料");
+        fcnPanel.classList.remove("open");
+      }
+    });
+
+
+
+    function candleChangeText(d) {
+      const change = d.close - d.open;
+      const pct = d.open ? change / d.open * 100 : 0;
+      const sign = change >= 0 ? "+" : "";
+      return `${sign}${change.toFixed(2)} (${sign}${pct.toFixed(2)}%)`;
+    }
+
+    function updateSelectedMarker(index) {
+      if (selectedMarker) {
+        disposeObject(selectedMarker);
+        root.remove(selectedMarker);
+        selectedMarker = null;
+      }
+      if (!currentData[index]) return;
+      const obj = interactiveMeshes.find(o => o.userData?.index === index && o.userData?.hitBox);
+      if (!obj) return;
+      const edgeGeo = new THREE.BoxGeometry(1.05, Math.max(obj.geometry.parameters.height, 3), 1.15);
+      const edgeMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: .25, wireframe: true });
+      selectedMarker = new THREE.Mesh(edgeGeo, edgeMat);
+      selectedMarker.position.copy(obj.position);
+      root.add(selectedMarker);
+    }
+
+    function showCandleDetail(index) {
+      const d = currentData[index];
+      if (!d) return;
+      selectedCandleIndex = index;
+      updateSelectedMarker(index);
+      const lv = fcnLevels(currentData);
+      const up = d.close >= d.open;
+      drawerTitle.textContent = `${d.date}｜${up ? "上漲紅 K" : "下跌綠 K"}`;
+      drawerSub.textContent = `第 ${index + 1} 根 / 共 ${currentData.length} 根；點上一根、下一根可逐日檢視。`;
+      detailGrid.innerHTML = `
+        <div class="detailItem"><div class="k">開盤 Open</div><div class="v">${formatUSD(d.open)}</div></div>
+        <div class="detailItem"><div class="k">最高 High</div><div class="v">${formatUSD(d.high)}</div></div>
+        <div class="detailItem"><div class="k">最低 Low</div><div class="v">${formatUSD(d.low)}</div></div>
+        <div class="detailItem"><div class="k">收盤 Close</div><div class="v">${formatUSD(d.close)}</div></div>
+        <div class="detailItem"><div class="k">當日漲跌</div><div class="v">${candleChangeText(d)}</div></div>
+        <div class="detailItem"><div class="k">成交量</div><div class="v">${formatVolume(d.volume)}</div></div>
+        <div class="detailItem"><div class="k">MA5</div><div class="v">${formatUSD(d.ma5)}</div></div>
+        <div class="detailItem"><div class="k">MA20 / MA60</div><div class="v">${formatUSD(d.ma20)} / ${formatUSD(d.ma60)}</div></div>
+        <div class="detailItem big"><div class="k">FCN 條件位置</div><div class="detailStatus">
+          ${fcnStatus(d.close, lv)}<br>
+          S0：${formatUSD(lv.s0)}｜KO：${formatUSD(lv.ko)}｜K：${formatUSD(lv.strike)}｜AKI：${formatUSD(lv.aki)}<br>
+          年化配息 ${(FCN.couponAnnual * 100).toFixed(2).replace(/\.00$/, "")}%｜${FCN.tenorMonths} 個月｜第 ${FCN.observationAfterMonth} 個月後觀察｜${FCN.koType}
+        </div></div>
+      `;
+      detailDrawer.classList.add("open");
+      tooltip.style.display = "none";
+    }
+
+    function pickCandleAt(clientX, clientY) {
+      const rect = renderer.domElement.getBoundingClientRect();
+      pointer.x = ((clientX - rect.left) / rect.width) * 2 - 1;
+      pointer.y = -((clientY - rect.top) / rect.height) * 2 + 1;
+      raycaster.setFromCamera(pointer, camera);
+      const hits = raycaster.intersectObjects(interactiveMeshes, false).filter(h => h.object?.userData?.candle);
+      if (!hits.length) return null;
+      const hit = hits.find(h => h.object.userData.hitBox) || hits[0];
+      return hit.object.userData;
+    }
+
+
+
+    renderer.domElement.addEventListener("pointerdown", (event) => {
+      pointerDownInfo = { x: event.clientX, y: event.clientY, t: performance.now(), pointerType: event.pointerType };
+    });
+
+    renderer.domElement.addEventListener("pointerup", (event) => {
+      if (!pointerDownInfo) return;
+      const dx = event.clientX - pointerDownInfo.x;
+      const dy = event.clientY - pointerDownInfo.y;
+      const moved = Math.hypot(dx, dy);
+      const elapsed = performance.now() - pointerDownInfo.t;
+      pointerDownInfo = null;
+      // 拖曳旋轉時不開啟；輕點或短按才視為選取 K 棒。
+      if (moved > 10 || elapsed > 900) return;
+      const picked = pickCandleAt(event.clientX, event.clientY);
+      if (picked?.candle && Number.isInteger(picked.index)) {
+        showCandleDetail(picked.index);
+      }
+    });
+
+    document.getElementById("closeDrawer").addEventListener("click", () => {
+      detailDrawer.classList.remove("open");
+    });
+
+    document.getElementById("prevCandle").addEventListener("click", () => {
+      if (!currentData.length) return;
+      showCandleDetail(Math.max(0, selectedCandleIndex - 1));
+    });
+
+    document.getElementById("nextCandle").addEventListener("click", () => {
+      if (!currentData.length) return;
+      showCandleDetail(Math.min(currentData.length - 1, selectedCandleIndex + 1));
     });
 
     function onPointerMove(event) {
-      const rect = renderer.domElement.getBoundingClientRect();
-      pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-      pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
-      raycaster.setFromCamera(pointer, camera);
-      const hit = raycaster.intersectObjects(interactiveMeshes, false)[0];
-      if (!hit?.object?.userData?.candle) {
+      if (event.pointerType === "touch") return;
+      const picked = pickCandleAt(event.clientX, event.clientY);
+      if (!picked?.candle) {
         tooltip.style.display = "none";
         return;
       }
-      const d = hit.object.userData.candle;
-      const up = hit.object.userData.isUp;
+      const d = picked.candle;
+      const up = picked.isUp;
       const lv = fcnLevels(currentData);
       tooltip.style.display = "block";
       tooltip.style.left = Math.min(window.innerWidth - 345, event.clientX + 16) + "px";
