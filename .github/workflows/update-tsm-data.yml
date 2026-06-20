@@ -1,4 +1,4 @@
-name: Update TSM ADR data
+name: Update ADR market data
 
 on:
   workflow_dispatch:
@@ -22,17 +22,17 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Fetch TSM ADR daily OHLC data
+      - name: Fetch ADR daily OHLC data
         run: python scripts/fetch_tsm.py
 
       - name: Commit updated data files
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add data/tsm-*.json data/README.txt
+          git add data/*.json data/README.txt
           if git diff --cached --quiet; then
             echo "No data changes to commit."
           else
-            git commit -m "Update TSM ADR market data"
+            git commit -m "Update ADR market data"
             git push
           fi
