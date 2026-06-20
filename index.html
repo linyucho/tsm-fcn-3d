@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>台積電 ADR｜FCN / ELN 條件圖 V13</title>
+  <title>台積電 ADR｜FCN / ELN 條件圖 V14</title>
   <meta name="description" content="台積電 ADR FCN/ELN 條件圖，預設平面K線圖，支援3D切換、手機點選單根K棒與FCN條件更新。" />
   <style>
     :root {
@@ -93,7 +93,7 @@
     <header>
       <h1>台積電 ADR｜FCN / ELN 條件圖</h1>
       <div class="sub" id="sourceLine">資料讀取中｜平面圖為主要檢視畫面，可切換 3D 輔助展示</div>
-      <div class="modeNotice">手機版先顯示平面圖：一次約半年，可左右滑動；左側價格刻度會跟著畫面移動。</div>
+      <div class="modeNotice">手機版先顯示平面圖：一次約半年，可左右滑動；左側價格刻度會跟著畫面移動；評價日與KO觀察起始線已合併。</div>
     </header>
 
     <section id="flatView">
@@ -327,7 +327,8 @@
       const totalSlots = data.length + futureSlots;
       const xOf = i => plotX + (i/Math.max(totalSlots-1,1))*plotW;
       const issueSlot = data.length-1;
-      const obsSlot = issueSlot + Math.max(1,FCN.observationAfterMonth)*21;
+      // V14：依使用者要求，評價日線與 KO 觀察起始線在平面圖上合併顯示，避免手機版出現兩條分開的垂直線。
+      const obsSlot = issueSlot;
       const maturitySlot = issueSlot + Math.max(1,FCN.tenorMonths)*21;
       const issueX = xOf(issueSlot);
       const obsX = xOf(Math.min(obsSlot,totalSlots-1));
@@ -430,26 +431,37 @@
         smallTag(x,y,t,color);
       });
 
-      // 條件價格標籤：固定在目前可視窗右側，小字顯示；左右滑動時仍看得到數字，且不會壓在K線主體上。
-      const labelH=mobile?18:24;
-      const labelW=mobile?104:150;
-      const futureLabelX = clamp(visibleRight - labelW - 6, visibleLeft + axisPanelW + 8, plotX+plotW-labelW-6);
+      // 條件價格標籤：V14 改成純文字，不畫外框，避免遮住 K 線。左右滑動時文字固定在目前可視窗右側。
+      const labelH=mobile?16:20;
+      const textX = clamp(visibleRight - 10, visibleLeft + axisPanelW + 72, plotX + plotW - 8);
       const conds=[
         {y:koY, text:`出場價 ${lv.ko.toFixed(2)}`, color:"#8e2530"},
         {y:strikeY, text:`執行價 ${lv.strike.toFixed(2)}`, color:"#227da0"},
       ];
       if(lv.hasBarrier) conds.push({y:barrierY, text:`保護傘 ${lv.barrier.toFixed(2)}`, color:"#2d9ec0"});
       else conds.push({y:plotY+plotH-(mobile?50:60), text:`保護傘 無`, color:"#2d9ec0"});
-      const sorted=conds.map(c=>({...c,y0:clamp(c.y-labelH/2,plotY+4,plotY+plotH-labelH-4)})).sort((a,b)=>a.y0-b.y0);
-      for(let i=1;i<sorted.length;i++) if(sorted[i].y0 < sorted[i-1].y0 + labelH + 3) sorted[i].y0 = sorted[i-1].y0 + labelH + 3;
-      const overflow = sorted.length ? sorted[sorted.length-1].y0 + labelH + 3 - (plotY+plotH) : 0;
+      const sorted=conds.map(c=>({...c,y0:clamp(c.y,plotY+12,plotY+plotH-12)})).sort((a,b)=>a.y0-b.y0);
+      for(let i=1;i<sorted.length;i++) if(sorted[i].y0 < sorted[i-1].y0 + labelH) sorted[i].y0 = sorted[i-1].y0 + labelH;
+      const overflow = sorted.length ? sorted[sorted.length-1].y0 - (plotY+plotH-10) : 0;
       if(overflow>0) sorted.forEach(c=>c.y0-=overflow);
-      sorted.forEach(c=>pill(ctx, futureLabelX, c.y0, labelW, labelH, c.text, c.color, "rgba(255,255,255,.78)", mobile?"900 9px 'Noto Sans TC'":"900 12px 'Noto Sans TC'"));
+      ctx.save();
+      ctx.textAlign="right";
+      ctx.textBaseline="middle";
+      ctx.font=mobile?"900 10px 'Noto Sans TC', sans-serif":"900 13px 'Noto Sans TC', sans-serif";
+      sorted.forEach(c=>{
+        ctx.lineWidth=3;
+        ctx.strokeStyle="rgba(255,255,255,.78)";
+        ctx.strokeText(c.text,textX,c.y0);
+        ctx.fillStyle=c.color;
+        ctx.fillText(c.text,textX,c.y0);
+      });
+      ctx.restore();
 
-      // vertical date lines
-      function vLine(x,color){ctx.save();ctx.strokeStyle=color;ctx.setLineDash([3,5]);ctx.lineWidth=1.8;ctx.beginPath();ctx.moveTo(x,plotY);ctx.lineTo(x,volY+volH);ctx.stroke();ctx.restore();}
-      vLine(issueX,"#1d6e8c");vLine(obsX,"#9c2d36");vLine(matX,"#202a3e");
-      if(!mobile){pill(ctx,issueX-44,plotY+10,88,28,"評價日","#1d6e8c");pill(ctx,obsX-52,plotY+44,104,28,"KO觀察","#9c2d36");pill(ctx,matX-38,plotY+78,76,28,"到期","#202a3e");}
+      // vertical date lines：評價日與 KO 觀察起始合併在同一條線。
+      function vLine(x,color,width=1.8){ctx.save();ctx.strokeStyle=color;ctx.setLineDash([3,5]);ctx.lineWidth=width;ctx.beginPath();ctx.moveTo(x,plotY);ctx.lineTo(x,volY+volH);ctx.stroke();ctx.restore();}
+      vLine(issueX,"#8b3b7c",2.0);
+      vLine(matX,"#202a3e");
+      if(!mobile){pill(ctx,issueX-58,plotY+10,116,28,"評價 / KO","#8b3b7c");pill(ctx,matX-38,plotY+48,76,28,"到期","#202a3e");}
 
       // observation bracket, inside bottom right
       const by=plotY+plotH-(mobile?26:34);
