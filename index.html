@@ -47,10 +47,10 @@
     body.flat-mode { background: #efe3cb; }
     body.flat-mode #stage { display: none; }
     body.flat-mode #flatCanvas { display: block; }
-    body.flat-mode .hud, body.flat-mode .tapHint, body.flat-mode .footnote { display: none; }
+    body.flat-mode .hud, body.flat-mode .tapHint, body.flat-mode .footnote, body.flat-mode .dataWarning { display: none !important; }
     body.flat-mode .rightPanel.open { display: block; z-index: 62; }
     body.flat-mode #detailDrawer.open { z-index: 70; }
-    body.flat-mode .floatingTools { z-index: 80; padding: 8px; border-radius: 999px; background: rgba(239,227,203,.78); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); box-shadow: 0 10px 30px rgba(0,0,0,.16); }
+    body.flat-mode .floatingTools { z-index: 80; padding: 8px; border-radius: 999px; background: rgba(239,227,203,.86); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); box-shadow: 0 10px 30px rgba(0,0,0,.16); max-width: calc(100vw - 28px); overflow-x: auto; }
     body.flat-mode .floatingTools button { background: rgba(255,255,255,.78); color: #152033; border-color: rgba(29,38,57,.20); }
     body.flat-mode .floatingTools button.active { background: #14223a; color: white; }
 
@@ -457,6 +457,7 @@
       ctx.fillStyle = "#efe3cb";
       ctx.fillRect(0, 0, W, H);
       flatHitAreas = [];
+
       if (!currentData.length) {
         ctx.fillStyle = "#12213a";
         ctx.font = "700 20px 'Noto Sans TC', sans-serif";
@@ -464,33 +465,40 @@
         return;
       }
 
-      const compact = W < 920;
+      const compact = W < 820 || H < 720;
+      const portrait = compact && H > W;
       const sideW = compact ? 0 : Math.min(292, Math.max(250, W * 0.20));
-      const marginL = compact ? 42 : 96;
-      const marginR = compact ? 34 : sideW + 48;
-      const titleH = compact ? 58 : 78;
+      const marginL = compact ? 48 : 96;
+      const marginR = compact ? 22 : sideW + 48;
+      const titleH = compact ? 62 : 78;
+      const bottomReserve = compact ? 152 : 92;
       const footH = compact ? 28 : 34;
+      const volH = compact ? 58 : 86;
+      const volGap = compact ? 8 : 14;
       const plotX = marginL;
-      const plotY = titleH + (compact ? 14 : 20);
-      const plotW = W - marginL - marginR;
-      const volH = compact ? 62 : 86;
-      const volGap = compact ? 10 : 14;
-      const plotH = H - titleH - footH - volH - volGap - (compact ? 56 : 92);
+      const plotY = titleH + (compact ? 12 : 20);
+      const plotW = Math.max(260, W - marginL - marginR);
+      const plotH = Math.max(260, H - titleH - bottomReserve - volH - volGap);
       const volY = plotY + plotH + volGap;
       const panelX = W - sideW - 20;
       const panelY = plotY + 8;
       const panelH = plotH + volH + volGap - 8;
 
       ctx.textAlign = "center";
+      ctx.textBaseline = "alphabetic";
       ctx.fillStyle = "#16233d";
-      ctx.font = compact ? "800 22px Georgia, 'Noto Serif TC', serif" : "900 34px Georgia, 'Noto Serif TC', 'Noto Sans TC', serif";
-      ctx.fillText("TSM ADR 台積電 ADR｜CITI FCN / ELN 條件精準標示圖", W / 2, compact ? 34 : 42);
+      ctx.font = compact ? "900 18px Georgia, 'Noto Serif TC', serif" : "900 34px Georgia, 'Noto Serif TC', 'Noto Sans TC', serif";
+      const title = compact ? "台積電 ADR｜CITI FCN / ELN 條件圖" : "TSM ADR 台積電 ADR｜CITI FCN / ELN 條件精準標示圖";
+      ctx.fillText(title, W / 2, compact ? 30 : 42, W - 18);
+      ctx.fillStyle = "#4d5a72";
+      ctx.font = compact ? "700 10px 'Noto Sans TC', sans-serif" : "700 11px 'Noto Sans TC', sans-serif";
+      const latestTemp = currentData[currentData.length - 1];
+      ctx.fillText(`資料來源：${currentSource || "目前資料"}｜最新收盤：${formatUSD(latestTemp.close)}｜點 K 棒可顯示開高低收`, W / 2, compact ? 50 : 62, W - 20);
 
       const data = currentData;
       const lv = fcnLevels(data);
-      const futureDays = Math.max(22, FCN.tenorMonths * 21);
+      const futureDays = compact ? Math.max(72, FCN.tenorMonths * 18) : Math.max(22, FCN.tenorMonths * 21);
       const totalSlots = data.length + futureDays;
-      const candleSlots = Math.max(data.length - 1, 1);
       const slotToX = (slot) => plotX + (slot / Math.max(totalSlots - 1, 1)) * plotW;
       const dateToX = (i) => slotToX(i);
       const issueSlot = data.length - 1;
@@ -505,10 +513,28 @@
       prices.push(lv.ko, lv.strike);
       if (lv.hasBarrier) prices.push(lv.barrier);
       let minP = Math.min(...prices), maxP = Math.max(...prices);
-      const pad = Math.max((maxP - minP) * 0.10, 8);
+      const pad = Math.max((maxP - minP) * (compact ? 0.12 : 0.10), 8);
       minP -= pad; maxP += pad;
       const yOf = p => plotY + (maxP - p) / (maxP - minP) * plotH;
       const koY = yOf(lv.ko), strikeY = yOf(lv.strike), barrierY = lv.hasBarrier ? yOf(lv.barrier) : null;
+
+      function clamp(x, min, max) { return Math.max(min, Math.min(max, x)); }
+      function labelBox(x, y, text, color, opts = {}) {
+        const font = opts.font || (compact ? "800 11px 'Noto Sans TC', sans-serif" : "800 15px 'Noto Serif TC', serif");
+        const width = opts.width || (compact ? 138 : 260);
+        const xx = clamp(x, 4, W - width - 4);
+        flatTextBox(ctx, xx, y, [text], {
+          stroke: color,
+          color,
+          fill: opts.fill || "rgba(255,255,255,.82)",
+          font,
+          width,
+          lineHeight: compact ? 16 : 22,
+          padX: compact ? 8 : 14,
+          padY: compact ? 6 : 10,
+          radius: compact ? 9 : 10
+        });
+      }
 
       // 色塊區域：上方 KO、觀察配息區、下方可能承接股票區。
       ctx.save();
@@ -521,15 +547,9 @@
 
       // Grid and frame
       ctx.strokeStyle = "rgba(77,93,78,.18)"; ctx.lineWidth = 1;
-      for (let i = 0; i <= 10; i++) {
-        const x = plotX + plotW * i / 10;
-        ctx.beginPath(); ctx.moveTo(x, plotY); ctx.lineTo(x, plotY + plotH); ctx.stroke();
-      }
-      for (let i = 0; i <= 6; i++) {
-        const y = plotY + plotH * i / 6;
-        ctx.beginPath(); ctx.moveTo(plotX, y); ctx.lineTo(plotX + plotW, y); ctx.stroke();
-      }
-      ctx.strokeStyle = "rgba(46,66,58,.20)"; ctx.strokeRect(plotX, plotY, plotW, plotH);
+      for (let i = 0; i <= 8; i++) { const x = plotX + plotW * i / 8; ctx.beginPath(); ctx.moveTo(x, plotY); ctx.lineTo(x, plotY + plotH); ctx.stroke(); }
+      for (let i = 0; i <= 6; i++) { const y = plotY + plotH * i / 6; ctx.beginPath(); ctx.moveTo(plotX, y); ctx.lineTo(plotX + plotW, y); ctx.stroke(); }
+      ctx.strokeStyle = "rgba(46,66,58,.25)"; ctx.strokeRect(plotX, plotY, plotW, plotH);
 
       // 水平條件線
       function hLine(y, color, dashed = false, width = 2) {
@@ -541,14 +561,14 @@
       if (lv.hasBarrier) hLine(barrierY, "#2d9ec0", true, 1.8);
 
       // 量圖底色與 grid
-      ctx.fillStyle = "rgba(255,250,235,.70)"; ctx.fillRect(plotX, volY, plotW, volH);
+      ctx.fillStyle = "rgba(255,250,235,.72)"; ctx.fillRect(plotX, volY, plotW, volH);
       ctx.strokeStyle = "rgba(80,80,70,.16)";
-      for (let i = 0; i <= 10; i++) { const x = plotX + plotW * i / 10; ctx.beginPath(); ctx.moveTo(x, volY); ctx.lineTo(x, volY + volH); ctx.stroke(); }
+      for (let i = 0; i <= 8; i++) { const x = plotX + plotW * i / 8; ctx.beginPath(); ctx.moveTo(x, volY); ctx.lineTo(x, volY + volH); ctx.stroke(); }
       ctx.strokeRect(plotX, volY, plotW, volH);
 
-      // K 棒與成交量
+      // K 棒與成交量；台股/華人習慣：漲綠、跌紅。
       const maxVol = Math.max(...data.map(d => d.volume || 0), 1);
-      const candleW = Math.max(2, Math.min(7, plotW / totalSlots * 0.62));
+      const candleW = Math.max(1.6, Math.min(compact ? 4.2 : 7, plotW / totalSlots * 0.66));
       data.forEach((d, i) => {
         const x = dateToX(i);
         const up = d.close >= d.open;
@@ -561,11 +581,11 @@
         ctx.fillRect(x - candleW / 2, bodyY, candleW, bodyH);
         const vh = (d.volume || 0) / maxVol * (volH - 8);
         ctx.globalAlpha = .58; ctx.fillRect(x - candleW / 2, volY + volH - vh, candleW, vh); ctx.globalAlpha = 1;
-        flatHitAreas.push({ x: x - candleW * 1.2, y: plotY, w: candleW * 2.4, h: plotH, index: i });
+        flatHitAreas.push({ x: x - Math.max(8, candleW * 1.6), y: plotY, w: Math.max(16, candleW * 3.2), h: plotH, index: i });
       });
 
       function drawAverage(key, color, label, yOffset = 0) {
-        ctx.save(); ctx.strokeStyle = color; ctx.lineWidth = 2.1; ctx.beginPath(); let started = false;
+        ctx.save(); ctx.strokeStyle = color; ctx.lineWidth = compact ? 1.8 : 2.1; ctx.beginPath(); let started = false;
         data.forEach((d, i) => {
           const v = d[key]; if (!Number.isFinite(v)) return;
           const x = dateToX(i), y = yOf(v);
@@ -574,8 +594,10 @@
         if (started) ctx.stroke();
         const latestWith = [...data].reverse().find(d => Number.isFinite(d[key]));
         if (latestWith) {
-          const idx = data.indexOf(latestWith); const x = Math.min(dateToX(idx) + 8, plotX + plotW - 90); const y = yOf(latestWith[key]) + yOffset;
-          ctx.font = compact ? "700 11px 'Noto Sans TC', sans-serif" : "700 12px 'Noto Sans TC', sans-serif";
+          const idx = data.indexOf(latestWith);
+          const x = clamp(dateToX(idx) + 7, plotX + 2, plotX + plotW - 45);
+          const y = clamp(yOf(latestWith[key]) + yOffset, plotY + 12, plotY + plotH - 8);
+          ctx.font = compact ? "800 10px 'Noto Sans TC', sans-serif" : "800 12px 'Noto Sans TC', sans-serif";
           ctx.fillStyle = color; ctx.fillText(label, x, y);
         }
         ctx.restore();
@@ -586,31 +608,40 @@
       drawAverage("avg240", "#4a7c59", "年線", 20);
 
       // 圖例
-      ctx.textAlign = "left"; ctx.font = compact ? "700 10px 'Noto Sans TC', sans-serif" : "700 11px 'Noto Sans TC', sans-serif";
+      ctx.textAlign = "left"; ctx.textBaseline = "alphabetic"; ctx.font = compact ? "800 10px 'Noto Sans TC', sans-serif" : "700 11px 'Noto Sans TC', sans-serif";
       const legend = [["月線", "#2c7fb8"], ["季線", "#7a51b8"], ["半年線", "#d08a2e"], ["年線", "#4a7c59"]];
-      legend.forEach(([t, c], i) => { const y = plotY + 12 + i * 15; ctx.strokeStyle = c; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(plotX + 5, y - 4); ctx.lineTo(plotX + 26, y - 4); ctx.stroke(); ctx.fillStyle = "#1e2b3e"; ctx.fillText(t, plotX + 30, y - 9); });
+      legend.forEach(([t, c], i) => {
+        const y = plotY + 14 + i * (compact ? 13 : 15);
+        ctx.strokeStyle = c; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(plotX + 5, y - 4); ctx.lineTo(plotX + 24, y - 4); ctx.stroke();
+        ctx.fillStyle = "#1e2b3e"; ctx.fillText(t, plotX + 28, y - 8);
+      });
 
       // 價格與月份軸
-      ctx.textAlign = "right"; ctx.font = compact ? "11px 'Noto Sans TC', sans-serif" : "12px 'Noto Sans TC', sans-serif"; ctx.fillStyle = "#21324b";
-      for (let i = 0; i <= 5; i++) { const p = minP + (maxP - minP) * i / 5; ctx.fillText(p.toFixed(0), plotX - 8, yOf(p) + 4); }
-      ctx.save(); ctx.textAlign = "center"; ctx.fillStyle = "#1d2d47";
-      const monthSeen = new Set();
+      ctx.textAlign = "right"; ctx.font = compact ? "10px 'Noto Sans TC', sans-serif" : "12px 'Noto Sans TC', sans-serif"; ctx.fillStyle = "#21324b";
+      for (let i = 0; i <= 5; i++) { const p = minP + (maxP - minP) * i / 5; ctx.fillText(p.toFixed(0), plotX - 7, yOf(p) + 4); }
+      ctx.save(); ctx.textAlign = "center"; ctx.fillStyle = "#1d2d47"; ctx.font = compact ? "10px 'Noto Sans TC', sans-serif" : "12px 'Noto Sans TC', sans-serif";
+      const labelStep = compact ? Math.max(26, Math.ceil(data.length / 5)) : Math.max(18, Math.ceil(data.length / 9));
       data.forEach((d, i) => {
-        const m = String(d.date).slice(0, 7);
-        if (!monthSeen.has(m) && (i === 0 || i % 18 === 0 || data.length < 90)) {
-          monthSeen.add(m); const x = dateToX(i);
-          ctx.save(); ctx.translate(x, volY + volH + 22); ctx.rotate(-Math.PI / 6); ctx.fillText(flatMapDateLabel(d), 0, 0); ctx.restore();
+        if (i === 0 || i === data.length - 1 || i % labelStep === 0) {
+          const x = dateToX(i);
+          ctx.save(); ctx.translate(x, volY + volH + (compact ? 17 : 22)); ctx.rotate(compact ? -Math.PI / 5 : -Math.PI / 6); ctx.fillText(flatMapDateLabel(d), 0, 0); ctx.restore();
         }
       });
       ctx.restore();
-      ctx.save(); ctx.translate(plotX - 52, volY + volH / 2); ctx.rotate(-Math.PI / 2); ctx.textAlign = "center"; ctx.font = "700 13px 'Noto Sans TC', sans-serif"; ctx.fillText("成交量", 0, 0); ctx.restore();
+      ctx.save(); ctx.translate(plotX - (compact ? 34 : 52), volY + volH / 2); ctx.rotate(-Math.PI / 2); ctx.textAlign = "center"; ctx.font = compact ? "800 11px 'Noto Sans TC', sans-serif" : "700 13px 'Noto Sans TC', sans-serif"; ctx.fillText("成交量", 0, 0); ctx.restore();
 
-      // 價格標籤
-      flatTextBox(ctx, Math.min(plotX + plotW - 330, plotX + plotW * .68), koY - 25, [`KO價 ${pctText(FCN.koPct)}% / 初始價：${lv.s0.toFixed(2)} USD`], { stroke: "#8e2530", color: "#8e2530", fill: "rgba(255,255,255,.84)", font: "800 17px 'Noto Serif TC', serif", width: compact ? 250 : 330 });
-      flatTextBox(ctx, Math.min(plotX + plotW - 285, plotX + plotW * .76), strikeY - 24, [`履約價 K ${pctText(FCN.strikePct)}%：${lv.strike.toFixed(2)} USD`], { stroke: "#227da0", color: "#1b7292", fill: "rgba(255,255,255,.84)", font: "800 16px 'Noto Serif TC', serif", width: compact ? 230 : 285 });
-      if (lv.hasBarrier) flatTextBox(ctx, Math.min(plotX + plotW - 270, plotX + plotW * .72), barrierY - 22, [`${lv.barrierType} ${pctText(FCN.barrierPct)}%：${lv.barrier.toFixed(2)} USD`], { stroke: "#2d9ec0", color: "#2d7690", fill: "rgba(255,255,255,.80)", font: "800 15px 'Noto Serif TC', serif", width: compact ? 210 : 260 });
+      // 價格標籤：手機版改成短標籤，避免跑出螢幕。
+      if (compact) {
+        labelBox(plotX + plotW - 146, koY - 17, `KO ${pctText(FCN.koPct)}% ${lv.ko.toFixed(2)}`, "#8e2530", { width: 142 });
+        labelBox(plotX + plotW - 146, strikeY - 17, `K ${pctText(FCN.strikePct)}% ${lv.strike.toFixed(2)}`, "#227da0", { width: 142 });
+        if (lv.hasBarrier) labelBox(plotX + plotW - 146, barrierY - 17, `${lv.barrierType} ${pctText(FCN.barrierPct)}% ${lv.barrier.toFixed(2)}`, "#2d9ec0", { width: 142 });
+      } else {
+        flatTextBox(ctx, Math.min(plotX + plotW - 330, plotX + plotW * .68), koY - 25, [`KO價 ${pctText(FCN.koPct)}% / 初始價：${lv.s0.toFixed(2)} USD`], { stroke: "#8e2530", color: "#8e2530", fill: "rgba(255,255,255,.84)", font: "800 17px 'Noto Serif TC', serif", width: 330 });
+        flatTextBox(ctx, Math.min(plotX + plotW - 285, plotX + plotW * .76), strikeY - 24, [`履約價 K ${pctText(FCN.strikePct)}%：${lv.strike.toFixed(2)} USD`], { stroke: "#227da0", color: "#1b7292", fill: "rgba(255,255,255,.84)", font: "800 16px 'Noto Serif TC', serif", width: 285 });
+        if (lv.hasBarrier) flatTextBox(ctx, Math.min(plotX + plotW - 270, plotX + plotW * .72), barrierY - 22, [`${lv.barrierType} ${pctText(FCN.barrierPct)}%：${lv.barrier.toFixed(2)} USD`], { stroke: "#2d9ec0", color: "#2d7690", fill: "rgba(255,255,255,.80)", font: "800 15px 'Noto Serif TC', serif", width: 260 });
+      }
 
-      // 左側解釋框
+      // 左側解釋框：只在平板/桌機顯示，手機避免覆蓋 K 線。
       if (!compact) {
         flatTextBox(ctx, plotX + 14, koY - 122, ["KO 提前出場區", `KO觀察開始後，若 TSM ADR 觸及或高於初始價，可能提前出場`], { stroke: "#2a9b78", color: "#163d36", fill: "rgba(255,255,255,.60)", width: 510 });
         flatTextBox(ctx, plotX + 14, koY + 32, ["觀察配息區", `股價低於初始價、但高於履約價 ${pctText(FCN.strikePct)}%，通常繼續觀察配息`], { stroke: "#d0aa40", color: "#65420b", fill: "rgba(255,255,255,.58)", width: 500 });
@@ -618,18 +649,32 @@
       }
 
       // 垂直時間線與觀察區間
-      function vLine(x, color, label, stroke = [2, 4]) {
-        ctx.save(); ctx.strokeStyle = color; ctx.setLineDash(stroke); ctx.lineWidth = 1.7; ctx.beginPath(); ctx.moveTo(x, plotY); ctx.lineTo(x, volY + volH); ctx.stroke(); ctx.restore();
-        ctx.save(); ctx.translate(x + 5, plotY + 8); ctx.rotate(-Math.PI / 2);
-        flatTextBox(ctx, 0, 0, [label], { stroke: color, color, fill: "rgba(255,255,255,.86)", font: "800 14px 'Noto Serif TC', serif", width: 114, padX: 9, padY: 6, radius: 7 });
-        ctx.restore();
+      function vLine(x, color, label, shortLabel, row = 0, stroke = [2, 4]) {
+        ctx.save(); ctx.strokeStyle = color; ctx.setLineDash(stroke); ctx.lineWidth = compact ? 1.5 : 1.7; ctx.beginPath(); ctx.moveTo(x, plotY); ctx.lineTo(x, volY + volH); ctx.stroke(); ctx.restore();
+        if (compact) {
+          const w = 74;
+          labelBox(x - w / 2, plotY + 5 + row * 25, shortLabel, color, { width: w, font: "800 10px 'Noto Sans TC', sans-serif" });
+        } else {
+          ctx.save(); ctx.translate(x + 5, plotY + 8); ctx.rotate(-Math.PI / 2);
+          flatTextBox(ctx, 0, 0, [label], { stroke: color, color, fill: "rgba(255,255,255,.86)", font: "800 14px 'Noto Serif TC', serif", width: 114, padX: 9, padY: 6, radius: 7 });
+          ctx.restore();
+        }
       }
-      vLine(issueX, "#1d6e8c", `評價日 ${latest.date}`);
-      vLine(obsX, "#9c2d36", `KO觀察起始 第${FCN.observationAfterMonth}個月後`);
-      vLine(maturityX, "#202a3e", `估約到期日 ${FCN.tenorMonths}個月`, [3, 4]);
-      ctx.save(); ctx.strokeStyle = "#202a3e"; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(obsX, plotY + plotH - 28); ctx.lineTo(maturityX, plotY + plotH - 28); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(obsX, plotY + plotH - 33); ctx.lineTo(obsX, plotY + plotH - 23); ctx.moveTo(maturityX, plotY + plotH - 33); ctx.lineTo(maturityX, plotY + plotH - 23); ctx.stroke();
-      flatTextBox(ctx, (obsX + maturityX) / 2 - 100, plotY + plotH - 60, [`FCN / ELN 約${FCN.tenorMonths}個月觀察期間`], { stroke: "#202a3e", color: "#202a3e", fill: "rgba(255,255,255,.84)", font: "800 14px 'Noto Serif TC', serif", width: 205 });
+      vLine(issueX, "#1d6e8c", `評價日 ${latest.date}`, "評價日", 0);
+      vLine(obsX, "#9c2d36", `KO觀察起始 第${FCN.observationAfterMonth}個月後`, "KO觀察", 1);
+      vLine(maturityX, "#202a3e", `估約到期日 ${FCN.tenorMonths}個月`, "到期", 2, [3, 4]);
+
+      ctx.save(); ctx.strokeStyle = "#202a3e"; ctx.lineWidth = compact ? 1.5 : 2;
+      const periodY = plotY + plotH - (compact ? 20 : 28);
+      ctx.beginPath(); ctx.moveTo(obsX, periodY); ctx.lineTo(maturityX, periodY); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(obsX, periodY - 5); ctx.lineTo(obsX, periodY + 5); ctx.moveTo(maturityX, periodY - 5); ctx.lineTo(maturityX, periodY + 5); ctx.stroke();
+      const periodText = `FCN / ELN 約${FCN.tenorMonths}個月觀察期間`;
+      if (compact) {
+        ctx.textAlign = "center"; ctx.fillStyle = "#202a3e"; ctx.font = "900 12px 'Noto Sans TC', sans-serif";
+        ctx.fillText(periodText, clamp((obsX + maturityX) / 2, plotX + 78, plotX + plotW - 78), periodY - 10, 155);
+      } else {
+        flatTextBox(ctx, (obsX + maturityX) / 2 - 100, plotY + plotH - 60, [periodText], { stroke: "#202a3e", color: "#202a3e", fill: "rgba(255,255,255,.84)", font: "800 14px 'Noto Serif TC', serif", width: 205 });
+      }
       ctx.restore();
 
       // 右側條件面板
@@ -647,17 +692,20 @@
           "KO條件", `KO Type：${FCN.koType}`, `KO觀察：第${FCN.observationAfterMonth}個月後起`, "",
           "白話說明", "1. 回到初始價以上，可能提前出場。", `2. 介於履約價到KO間，通常持續觀察配息。`, `3. 到期低於履約價，可能以履約價承接。`, "4. 仍以正式條款書為準。"
         ];
-        panelLines.forEach(line => {
-          if (line === "") { ty += 10; return; }
-          ctx.fillText(line, tx, ty); ty += 20;
-        });
+        panelLines.forEach(line => { if (line === "") { ty += 10; return; } ctx.fillText(line, tx, ty); ty += 20; });
+      } else {
+        // 手機版用底部簡短說明，避免右側條件欄擠壓主圖。
+        const infoY = Math.min(H - 86, volY + volH + 48);
+        ctx.fillStyle = "rgba(255,255,255,.58)"; ctx.strokeStyle = "rgba(38,51,75,.35)";
+        flatRoundRect(ctx, 12, infoY, W - 24, 44, 12); ctx.fill(); ctx.stroke();
+        ctx.textAlign = "left"; ctx.fillStyle = "#1b2b44"; ctx.font = "800 11px 'Noto Sans TC', sans-serif";
+        ctx.fillText(`初始價 ${lv.s0.toFixed(2)}｜年化 ${pctText(FCN.couponAnnual)}%｜天期 ${FCN.tenorMonths}個月｜${lv.hasBarrier ? lv.barrierType + " " + pctText(FCN.barrierPct) + "%" : "無下限條件"}`, 22, infoY + 18, W - 44);
+        ctx.fillStyle = "#536079"; ctx.font = "700 10px 'Noto Sans TC', sans-serif";
+        ctx.fillText("手機直式已簡化標籤；橫向觀看會更接近完整簡報版。", 22, infoY + 34, W - 44);
       }
 
-      // 圖上說明與更新時間
-      ctx.textAlign = "center"; ctx.fillStyle = "#3b455a"; ctx.font = compact ? "10px 'Noto Sans TC', sans-serif" : "11px 'Noto Sans TC', sans-serif";
-      ctx.fillText(`資料來源：${currentSource || "目前資料"}｜最新收盤：${formatUSD(latest.close)}｜點 K 棒可顯示開高低收`, plotX + plotW / 2, plotY - 16);
       ctx.textAlign = "left"; ctx.fillStyle = "#536079"; ctx.font = compact ? "10px 'Noto Sans TC', sans-serif" : "13px 'Noto Sans TC', sans-serif";
-      ctx.fillText("說明：本圖以 Yahoo Finance 股價資料估算初始價與條件線；若正式條款書提供最終初始價，請輸入後重跑。KO價與履約價以正式價格精準標示。", 8, H - 10);
+      ctx.fillText("說明：本圖以 Yahoo Finance 股價資料估算初始價與條件線；正式說明仍以 termsheet 為準。", 8, H - 10, W - 16);
     }
 
 
