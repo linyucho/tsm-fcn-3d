@@ -3,8 +3,6 @@ name: Update TSM ADR data
 on:
   workflow_dispatch:
   schedule:
-    # GitHub Actions cron uses UTC time.
-    # 23:45 UTC is 07:45 Taipei time the next day, after the US market close.
     - cron: "45 23 * * 1-5"
 
 permissions:
@@ -13,6 +11,7 @@ permissions:
 jobs:
   update-data:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -21,11 +20,6 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-
-      - name: Show Python file head for debugging
-        run: |
-          python --version
-          sed -n '1,40p' scripts/fetch_tsm.py
 
       - name: Fetch TSM ADR daily OHLC data
         run: python scripts/fetch_tsm.py
