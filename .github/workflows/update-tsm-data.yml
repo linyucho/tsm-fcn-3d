@@ -22,6 +22,11 @@ jobs:
         with:
           python-version: "3.11"
 
+      - name: Show Python file head for debugging
+        run: |
+          python --version
+          sed -n '1,40p' scripts/fetch_tsm.py
+
       - name: Fetch TSM ADR daily OHLC data
         run: python scripts/fetch_tsm.py
 
