@@ -3,8 +3,8 @@ name: Update TSM ADR data
 on:
   workflow_dispatch:
   schedule:
-    # UTC 23:45 = 台北隔天 07:45；美股收盤後更新日 K 資料。
-    - cron: "45 23 * * 1-5"
+    # 每小時更新一次資料檔。GitHub Pages 是靜態網站；網頁重整會讀取最新已產生的 JSON。
+    - cron: "15 * * * 1-5"
 
 permissions:
   contents: write
