@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Generate daily OHLC JSON files for TSM ADR static GitHub Pages site.
+Generate daily OHLC JSON files for a static GitHub Pages TSM ADR site.
 No third-party Python packages required.
 """
 from __future__ import annotations
@@ -13,17 +13,20 @@ from pathlib import Path
 
 RANGES = ["1mo", "3mo", "6mo", "1y"]
 TICKER = "TSM"
-BASE_URL = "https://query1.finance.yahoo.com/v8/finance/chart/{ticker}?range={range}&interval=1d&includePrePost=false&events=history"
+BASE_URL = (
+    "https://query1.finance.yahoo.com/v8/finance/chart/"
+    "{ticker}?range={range_name}&interval=1d&includePrePost=false&events=history"
+)
 OUT_DIR = Path(__file__).resolve().parents[1] / "data"
 
 
 def fetch_range(range_name: str) -> dict:
-    url = BASE_URL.format(ticker=TICKER, range=range_name)
+    url = BASE_URL.format(ticker=TICKER, range_name=range_name)
     req = urllib.request.Request(
         url,
         headers={
-            "User-Agent": "Mozilla/5.0 (GitHub Actions; TSM ADR 3D FCN demo)",
-            "Accept": "application/json",
+            "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/120 Safari/537.36",
+            "Accept": "application/json,text/plain,*/*",
         },
     )
     with urllib.request.urlopen(req, timeout=30) as resp:
@@ -35,11 +38,13 @@ def fetch_range(range_name: str) -> dict:
 def to_rows(payload: dict) -> list[dict]:
     result = (payload.get("chart", {}).get("result") or [None])[0]
     if not result:
-        raise RuntimeError("Missing chart.result")
+        error = payload.get("chart", {}).get("error")
+        raise RuntimeError(f"Missing chart.result. Yahoo error: {error}")
 
     timestamps = result.get("timestamp") or []
     quote = (result.get("indicators", {}).get("quote") or [{}])[0]
-    rows = []
+    rows: list[dict] = []
+
     for i, ts in enumerate(timestamps):
         try:
             row = {
@@ -56,7 +61,7 @@ def to_rows(payload: dict) -> list[dict]:
         rows.append(row)
 
     if len(rows) < 10:
-        raise RuntimeError(f"Too few rows: {len(rows)}")
+        raise RuntimeError(f"Too few valid rows: {len(rows)}")
     return rows
 
 
@@ -64,7 +69,7 @@ def main() -> None:
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     updated_at = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
 
-    summary = []
+    summary: list[str] = []
     for range_name in RANGES:
         payload = fetch_range(range_name)
         rows = to_rows(payload)
@@ -79,7 +84,9 @@ def main() -> None:
         }
         out_path = OUT_DIR / f"tsm-{range_name}.json"
         out_path.write_text(json.dumps(out, ensure_ascii=False, indent=2), encoding="utf-8")
-        summary.append(f"{range_name}: {len(rows)} rows, latest close {rows[-1]['close']} on {rows[-1]['date']}")
+        summary.append(
+            f"{range_name}: {len(rows)} rows, latest close {rows[-1]['close']} on {rows[-1]['date']}"
+        )
         time.sleep(1)
 
     (OUT_DIR / "README.txt").write_text("\n".join(summary) + "\n", encoding="utf-8")
