@@ -7,7 +7,11 @@ import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 
-TICKER = "TSM"
+TICKERS = {
+    "TSM": {"file": "tsm", "name": "台積電 ADR"},
+    "ASX": {"file": "asx", "name": "日月光 ADR"},
+    "CHT": {"file": "cht", "name": "中華電信 ADR"},
+}
 RANGES = ["1mo", "3mo", "6mo", "1y", "2y", "5y"]
 OUT_DIR = Path(__file__).resolve().parents[1] / "data"
 BASE_URL = (
@@ -16,8 +20,8 @@ BASE_URL = (
 )
 
 
-def fetch_range(range_name: str) -> dict:
-    url = BASE_URL.format(ticker=TICKER, range_name=range_name)
+def fetch_range(ticker: str, range_name: str) -> dict:
+    url = BASE_URL.format(ticker=ticker, range_name=range_name)
     req = urllib.request.Request(
         url,
         headers={
@@ -27,7 +31,7 @@ def fetch_range(range_name: str) -> dict:
     )
     with urllib.request.urlopen(req, timeout=30) as resp:
         if resp.status != 200:
-            raise RuntimeError(f"HTTP {resp.status} for {range_name}")
+            raise RuntimeError(f"HTTP {resp.status} for {ticker} {range_name}")
         return json.loads(resp.read().decode("utf-8"))
 
 
@@ -73,27 +77,29 @@ def main() -> None:
     updated_at = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
     summary: list[str] = []
 
-    for range_name in RANGES:
-        payload = fetch_range(range_name)
-        rows = to_rows(payload)
-        out = {
-            "ticker": TICKER,
-            "source": "Yahoo Finance chart API via GitHub Actions",
-            "range": range_name,
-            "interval": "1d",
-            "updatedAt": updated_at,
-            "latest": rows[-1],
-            "rows": rows,
-        }
-        out_path = OUT_DIR / f"tsm-{range_name}.json"
-        out_path.write_text(json.dumps(out, ensure_ascii=False, indent=2), encoding="utf-8")
-        summary.append(
-            f"{range_name}: {len(rows)} rows, latest close {rows[-1]['close']} on {rows[-1]['date']}"
-        )
-        time.sleep(1)
+    for ticker, meta in TICKERS.items():
+        for range_name in RANGES:
+            payload = fetch_range(ticker, range_name)
+            rows = to_rows(payload)
+            out = {
+                "ticker": ticker,
+                "name": meta["name"],
+                "source": "Yahoo Finance chart API via GitHub Actions",
+                "range": range_name,
+                "interval": "1d",
+                "updatedAt": updated_at,
+                "latest": rows[-1],
+                "rows": rows,
+            }
+            out_path = OUT_DIR / f"{meta['file']}-{range_name}.json"
+            out_path.write_text(json.dumps(out, ensure_ascii=False, indent=2), encoding="utf-8")
+            summary.append(
+                f"{ticker} {range_name}: {len(rows)} rows, latest close {rows[-1]['close']} on {rows[-1]['date']}"
+            )
+            time.sleep(1)
 
     (OUT_DIR / "README.txt").write_text("\n".join(summary) + "\n", encoding="utf-8")
-    print("Generated TSM ADR data files:")
+    print("Generated ADR data files:")
     print("\n".join(summary))
 
 
