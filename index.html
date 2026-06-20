@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>台積電ADR FCN</title>
-  <meta name="description" content="台積電ADR FCN 3D K線互動頁，支援手機點選單根K棒顯示開高低收，並可輸入FCN條件自動更新KO、履約價與AKI/EKI標示。" />
+  <meta name="description" content="台積電ADR FCN 3D/平面切換互動頁，支援手機點選單根K棒顯示開高低收，並可輸入FCN條件自動更新KO、履約價與AKI/EKI標示。" />
   <style>
     :root {
       --bg: #080d1a;
@@ -39,6 +39,20 @@
 
     #stage { position: fixed; inset: 0; width: 100vw; height: 100vh; touch-action: none; cursor: grab; }
     #stage:active { cursor: grabbing; }
+
+    #flatCanvas {
+      position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 1; display: none;
+      background: #efe3cb; touch-action: manipulation; cursor: crosshair;
+    }
+    body.flat-mode { background: #efe3cb; }
+    body.flat-mode #stage { display: none; }
+    body.flat-mode #flatCanvas { display: block; }
+    body.flat-mode .hud, body.flat-mode .tapHint, body.flat-mode .footnote { display: none; }
+    body.flat-mode .rightPanel.open { display: block; z-index: 62; }
+    body.flat-mode #detailDrawer.open { z-index: 70; }
+    body.flat-mode .floatingTools { z-index: 80; padding: 8px; border-radius: 999px; background: rgba(239,227,203,.78); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); box-shadow: 0 10px 30px rgba(0,0,0,.16); }
+    body.flat-mode .floatingTools button { background: rgba(255,255,255,.78); color: #152033; border-color: rgba(29,38,57,.20); }
+    body.flat-mode .floatingTools button.active { background: #14223a; color: white; }
 
     .hud, .rightPanel {
       position: fixed; z-index: 10;
@@ -142,6 +156,7 @@
 </head>
 <body>
   <div id="stage"></div>
+  <canvas id="flatCanvas" aria-label="平面 FCN 條件精準標示圖"></canvas>
 
   <section class="hud" id="hudPanel">
     <div class="titleRow">
@@ -207,7 +222,7 @@
     </div>
   </aside>
 
-  <div class="floatingTools"><button id="openInfoPanel" type="button">資訊面板</button><button id="openFcnPanel" type="button">FCN 條件</button></div>
+  <div class="floatingTools"><button id="modeToggle" type="button">切換平面圖</button><button id="openInfoPanel" type="button">資訊面板</button><button id="openFcnPanel" type="button">FCN 條件</button></div>
   <div class="dataWarning" id="dataWarning"></div>
   <div class="loading" id="loading">正在建立台積電ADR FCN 3D模型...</div>
   <div id="tooltip"></div>
@@ -241,6 +256,11 @@
     const hudPanel = $("hudPanel");
     const hudToggle = $("hudToggle");
     const fcnPanel = $("fcnPanel");
+    const flatCanvas = $("flatCanvas");
+    const flatCtx = flatCanvas.getContext("2d");
+    let viewMode = "3d";
+    let flatHitAreas = [];
+    let flatPointerDown = null;
 
     const inputs = {
       initial: $("fcnInitialInput"), tenor: $("fcnTenorInput"), coupon: $("fcnCouponInput"), ko: $("fcnKoInput"),
@@ -369,6 +389,277 @@
       return String(Math.round(x));
     }
     function formatDate(ts) { return new Date(ts * 1000).toLocaleDateString("zh-TW", { year: "numeric", month: "2-digit", day: "2-digit", timeZone: "UTC" }); }
+
+    function setViewMode(mode) {
+      viewMode = mode === "flat" ? "flat" : "3d";
+      document.body.classList.toggle("flat-mode", viewMode === "flat");
+      controls.enabled = viewMode === "3d";
+      const btn = $("modeToggle");
+      btn.textContent = viewMode === "flat" ? "切換 3D 圖" : "切換平面圖";
+      btn.classList.toggle("active", viewMode === "flat");
+      if (viewMode === "flat") drawFlatChart();
+    }
+
+    function setupFlatCanvas() {
+      const ratio = Math.min(window.devicePixelRatio || 1, 2);
+      const cssW = window.innerWidth;
+      const cssH = window.innerHeight;
+      flatCanvas.width = Math.floor(cssW * ratio);
+      flatCanvas.height = Math.floor(cssH * ratio);
+      flatCanvas.style.width = cssW + "px";
+      flatCanvas.style.height = cssH + "px";
+      flatCtx.setTransform(ratio, 0, 0, ratio, 0, 0);
+    }
+
+    function flatRoundRect(ctx, x, y, w, h, r) {
+      const rr = Math.min(r, w / 2, h / 2);
+      ctx.beginPath();
+      ctx.moveTo(x + rr, y);
+      ctx.arcTo(x + w, y, x + w, y + h, rr);
+      ctx.arcTo(x + w, y + h, x, y + h, rr);
+      ctx.arcTo(x, y + h, x, y, rr);
+      ctx.arcTo(x, y, x + w, y, rr);
+      ctx.closePath();
+    }
+
+    function flatTextBox(ctx, x, y, lines, options = {}) {
+      const padX = options.padX ?? 14;
+      const padY = options.padY ?? 10;
+      const font = options.font ?? "700 15px 'Noto Sans TC', serif";
+      const lineHeight = options.lineHeight ?? 22;
+      ctx.save();
+      ctx.font = font;
+      const arr = Array.isArray(lines) ? lines : String(lines).split("\n");
+      const w = options.width ?? Math.max(...arr.map(t => ctx.measureText(t).width)) + padX * 2;
+      const h = arr.length * lineHeight + padY * 2;
+      ctx.fillStyle = options.fill ?? "rgba(255,255,255,.72)";
+      ctx.strokeStyle = options.stroke ?? "#2a8e71";
+      ctx.lineWidth = options.lineWidth ?? 1.4;
+      flatRoundRect(ctx, x, y, w, h, options.radius ?? 10);
+      ctx.fill(); ctx.stroke();
+      ctx.fillStyle = options.color ?? "#12302f";
+      ctx.textBaseline = "top";
+      arr.forEach((t, i) => ctx.fillText(t, x + padX, y + padY + i * lineHeight));
+      ctx.restore();
+      return { x, y, w, h };
+    }
+
+    function flatMapDateLabel(d) {
+      const [yy, mm] = String(d.date || "").split("/");
+      return yy && mm ? `${yy}-${mm}` : (d.date || "");
+    }
+
+    function drawFlatChart() {
+      setupFlatCanvas();
+      const ctx = flatCtx;
+      const W = window.innerWidth, H = window.innerHeight;
+      ctx.clearRect(0, 0, W, H);
+      ctx.fillStyle = "#efe3cb";
+      ctx.fillRect(0, 0, W, H);
+      flatHitAreas = [];
+      if (!currentData.length) {
+        ctx.fillStyle = "#12213a";
+        ctx.font = "700 20px 'Noto Sans TC', sans-serif";
+        ctx.fillText("資料讀取中，請稍候...", 28, 46);
+        return;
+      }
+
+      const compact = W < 920;
+      const sideW = compact ? 0 : Math.min(292, Math.max(250, W * 0.20));
+      const marginL = compact ? 42 : 96;
+      const marginR = compact ? 34 : sideW + 48;
+      const titleH = compact ? 58 : 78;
+      const footH = compact ? 28 : 34;
+      const plotX = marginL;
+      const plotY = titleH + (compact ? 14 : 20);
+      const plotW = W - marginL - marginR;
+      const volH = compact ? 62 : 86;
+      const volGap = compact ? 10 : 14;
+      const plotH = H - titleH - footH - volH - volGap - (compact ? 56 : 92);
+      const volY = plotY + plotH + volGap;
+      const panelX = W - sideW - 20;
+      const panelY = plotY + 8;
+      const panelH = plotH + volH + volGap - 8;
+
+      ctx.textAlign = "center";
+      ctx.fillStyle = "#16233d";
+      ctx.font = compact ? "800 22px Georgia, 'Noto Serif TC', serif" : "900 34px Georgia, 'Noto Serif TC', 'Noto Sans TC', serif";
+      ctx.fillText("TSM ADR 台積電 ADR｜CITI FCN / ELN 條件精準標示圖", W / 2, compact ? 34 : 42);
+
+      const data = currentData;
+      const lv = fcnLevels(data);
+      const futureDays = Math.max(22, FCN.tenorMonths * 21);
+      const totalSlots = data.length + futureDays;
+      const candleSlots = Math.max(data.length - 1, 1);
+      const slotToX = (slot) => plotX + (slot / Math.max(totalSlots - 1, 1)) * plotW;
+      const dateToX = (i) => slotToX(i);
+      const issueSlot = data.length - 1;
+      const obsSlot = issueSlot + Math.max(FCN.observationAfterMonth, 1) * 21;
+      const maturitySlot = issueSlot + Math.max(FCN.tenorMonths, 1) * 21;
+      const issueX = slotToX(issueSlot);
+      const obsX = slotToX(Math.min(obsSlot, totalSlots - 1));
+      const maturityX = slotToX(Math.min(maturitySlot, totalSlots - 1));
+      const latest = data[data.length - 1];
+
+      const prices = data.flatMap(d => [d.low, d.high, d.avg20, d.avg60, d.avg120, d.avg240].filter(Number.isFinite));
+      prices.push(lv.ko, lv.strike);
+      if (lv.hasBarrier) prices.push(lv.barrier);
+      let minP = Math.min(...prices), maxP = Math.max(...prices);
+      const pad = Math.max((maxP - minP) * 0.10, 8);
+      minP -= pad; maxP += pad;
+      const yOf = p => plotY + (maxP - p) / (maxP - minP) * plotH;
+      const koY = yOf(lv.ko), strikeY = yOf(lv.strike), barrierY = lv.hasBarrier ? yOf(lv.barrier) : null;
+
+      // 色塊區域：上方 KO、觀察配息區、下方可能承接股票區。
+      ctx.save();
+      ctx.beginPath(); ctx.rect(plotX, plotY, plotW, plotH); ctx.clip();
+      ctx.fillStyle = "#eef7e6"; ctx.fillRect(plotX, plotY, plotW, Math.max(0, koY - plotY));
+      ctx.fillStyle = "#fbf0ce"; ctx.fillRect(plotX, koY, plotW, Math.max(0, strikeY - koY));
+      ctx.fillStyle = "#e3f3f8"; ctx.fillRect(plotX, strikeY, plotW, Math.max(0, plotY + plotH - strikeY));
+      if (lv.hasBarrier) { ctx.fillStyle = "rgba(64, 180, 215, .10)"; ctx.fillRect(plotX, barrierY, plotW, plotY + plotH - barrierY); }
+      ctx.restore();
+
+      // Grid and frame
+      ctx.strokeStyle = "rgba(77,93,78,.18)"; ctx.lineWidth = 1;
+      for (let i = 0; i <= 10; i++) {
+        const x = plotX + plotW * i / 10;
+        ctx.beginPath(); ctx.moveTo(x, plotY); ctx.lineTo(x, plotY + plotH); ctx.stroke();
+      }
+      for (let i = 0; i <= 6; i++) {
+        const y = plotY + plotH * i / 6;
+        ctx.beginPath(); ctx.moveTo(plotX, y); ctx.lineTo(plotX + plotW, y); ctx.stroke();
+      }
+      ctx.strokeStyle = "rgba(46,66,58,.20)"; ctx.strokeRect(plotX, plotY, plotW, plotH);
+
+      // 水平條件線
+      function hLine(y, color, dashed = false, width = 2) {
+        ctx.save(); ctx.strokeStyle = color; ctx.lineWidth = width; if (dashed) ctx.setLineDash([7, 5]);
+        ctx.beginPath(); ctx.moveTo(plotX, y); ctx.lineTo(plotX + plotW, y); ctx.stroke(); ctx.restore();
+      }
+      hLine(koY, "#8e2530", false, 2.2);
+      hLine(strikeY, "#227da0", true, 2.1);
+      if (lv.hasBarrier) hLine(barrierY, "#2d9ec0", true, 1.8);
+
+      // 量圖底色與 grid
+      ctx.fillStyle = "rgba(255,250,235,.70)"; ctx.fillRect(plotX, volY, plotW, volH);
+      ctx.strokeStyle = "rgba(80,80,70,.16)";
+      for (let i = 0; i <= 10; i++) { const x = plotX + plotW * i / 10; ctx.beginPath(); ctx.moveTo(x, volY); ctx.lineTo(x, volY + volH); ctx.stroke(); }
+      ctx.strokeRect(plotX, volY, plotW, volH);
+
+      // K 棒與成交量
+      const maxVol = Math.max(...data.map(d => d.volume || 0), 1);
+      const candleW = Math.max(2, Math.min(7, plotW / totalSlots * 0.62));
+      data.forEach((d, i) => {
+        const x = dateToX(i);
+        const up = d.close >= d.open;
+        const col = up ? "#2e8b57" : "#b33b36";
+        const oy = yOf(d.open), cy = yOf(d.close), hy = yOf(d.high), ly = yOf(d.low);
+        ctx.strokeStyle = col; ctx.lineWidth = Math.max(1, candleW * .22);
+        ctx.beginPath(); ctx.moveTo(x, hy); ctx.lineTo(x, ly); ctx.stroke();
+        ctx.fillStyle = col;
+        const bodyY = Math.min(oy, cy), bodyH = Math.max(1.2, Math.abs(cy - oy));
+        ctx.fillRect(x - candleW / 2, bodyY, candleW, bodyH);
+        const vh = (d.volume || 0) / maxVol * (volH - 8);
+        ctx.globalAlpha = .58; ctx.fillRect(x - candleW / 2, volY + volH - vh, candleW, vh); ctx.globalAlpha = 1;
+        flatHitAreas.push({ x: x - candleW * 1.2, y: plotY, w: candleW * 2.4, h: plotH, index: i });
+      });
+
+      function drawAverage(key, color, label, yOffset = 0) {
+        ctx.save(); ctx.strokeStyle = color; ctx.lineWidth = 2.1; ctx.beginPath(); let started = false;
+        data.forEach((d, i) => {
+          const v = d[key]; if (!Number.isFinite(v)) return;
+          const x = dateToX(i), y = yOf(v);
+          if (!started) { ctx.moveTo(x, y); started = true; } else ctx.lineTo(x, y);
+        });
+        if (started) ctx.stroke();
+        const latestWith = [...data].reverse().find(d => Number.isFinite(d[key]));
+        if (latestWith) {
+          const idx = data.indexOf(latestWith); const x = Math.min(dateToX(idx) + 8, plotX + plotW - 90); const y = yOf(latestWith[key]) + yOffset;
+          ctx.font = compact ? "700 11px 'Noto Sans TC', sans-serif" : "700 12px 'Noto Sans TC', sans-serif";
+          ctx.fillStyle = color; ctx.fillText(label, x, y);
+        }
+        ctx.restore();
+      }
+      drawAverage("avg20", "#2c7fb8", "月線", -4);
+      drawAverage("avg60", "#7a51b8", "季線", 12);
+      drawAverage("avg120", "#d08a2e", "半年線", -16);
+      drawAverage("avg240", "#4a7c59", "年線", 20);
+
+      // 圖例
+      ctx.textAlign = "left"; ctx.font = compact ? "700 10px 'Noto Sans TC', sans-serif" : "700 11px 'Noto Sans TC', sans-serif";
+      const legend = [["月線", "#2c7fb8"], ["季線", "#7a51b8"], ["半年線", "#d08a2e"], ["年線", "#4a7c59"]];
+      legend.forEach(([t, c], i) => { const y = plotY + 12 + i * 15; ctx.strokeStyle = c; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(plotX + 5, y - 4); ctx.lineTo(plotX + 26, y - 4); ctx.stroke(); ctx.fillStyle = "#1e2b3e"; ctx.fillText(t, plotX + 30, y - 9); });
+
+      // 價格與月份軸
+      ctx.textAlign = "right"; ctx.font = compact ? "11px 'Noto Sans TC', sans-serif" : "12px 'Noto Sans TC', sans-serif"; ctx.fillStyle = "#21324b";
+      for (let i = 0; i <= 5; i++) { const p = minP + (maxP - minP) * i / 5; ctx.fillText(p.toFixed(0), plotX - 8, yOf(p) + 4); }
+      ctx.save(); ctx.textAlign = "center"; ctx.fillStyle = "#1d2d47";
+      const monthSeen = new Set();
+      data.forEach((d, i) => {
+        const m = String(d.date).slice(0, 7);
+        if (!monthSeen.has(m) && (i === 0 || i % 18 === 0 || data.length < 90)) {
+          monthSeen.add(m); const x = dateToX(i);
+          ctx.save(); ctx.translate(x, volY + volH + 22); ctx.rotate(-Math.PI / 6); ctx.fillText(flatMapDateLabel(d), 0, 0); ctx.restore();
+        }
+      });
+      ctx.restore();
+      ctx.save(); ctx.translate(plotX - 52, volY + volH / 2); ctx.rotate(-Math.PI / 2); ctx.textAlign = "center"; ctx.font = "700 13px 'Noto Sans TC', sans-serif"; ctx.fillText("成交量", 0, 0); ctx.restore();
+
+      // 價格標籤
+      flatTextBox(ctx, Math.min(plotX + plotW - 330, plotX + plotW * .68), koY - 25, [`KO價 ${pctText(FCN.koPct)}% / 初始價：${lv.s0.toFixed(2)} USD`], { stroke: "#8e2530", color: "#8e2530", fill: "rgba(255,255,255,.84)", font: "800 17px 'Noto Serif TC', serif", width: compact ? 250 : 330 });
+      flatTextBox(ctx, Math.min(plotX + plotW - 285, plotX + plotW * .76), strikeY - 24, [`履約價 K ${pctText(FCN.strikePct)}%：${lv.strike.toFixed(2)} USD`], { stroke: "#227da0", color: "#1b7292", fill: "rgba(255,255,255,.84)", font: "800 16px 'Noto Serif TC', serif", width: compact ? 230 : 285 });
+      if (lv.hasBarrier) flatTextBox(ctx, Math.min(plotX + plotW - 270, plotX + plotW * .72), barrierY - 22, [`${lv.barrierType} ${pctText(FCN.barrierPct)}%：${lv.barrier.toFixed(2)} USD`], { stroke: "#2d9ec0", color: "#2d7690", fill: "rgba(255,255,255,.80)", font: "800 15px 'Noto Serif TC', serif", width: compact ? 210 : 260 });
+
+      // 左側解釋框
+      if (!compact) {
+        flatTextBox(ctx, plotX + 14, koY - 122, ["KO 提前出場區", `KO觀察開始後，若 TSM ADR 觸及或高於初始價，可能提前出場`], { stroke: "#2a9b78", color: "#163d36", fill: "rgba(255,255,255,.60)", width: 510 });
+        flatTextBox(ctx, plotX + 14, koY + 32, ["觀察配息區", `股價低於初始價、但高於履約價 ${pctText(FCN.strikePct)}%，通常繼續觀察配息`], { stroke: "#d0aa40", color: "#65420b", fill: "rgba(255,255,255,.58)", width: 500 });
+        flatTextBox(ctx, plotX + 14, strikeY + 34, ["購買股票區域", `若到期 TSM ADR 低於履約價 ${pctText(FCN.strikePct)}%，等於以履約價承接台積電 ADR`], { stroke: "#2382a2", color: "#15516a", fill: "rgba(255,255,255,.58)", width: 560 });
+      }
+
+      // 垂直時間線與觀察區間
+      function vLine(x, color, label, stroke = [2, 4]) {
+        ctx.save(); ctx.strokeStyle = color; ctx.setLineDash(stroke); ctx.lineWidth = 1.7; ctx.beginPath(); ctx.moveTo(x, plotY); ctx.lineTo(x, volY + volH); ctx.stroke(); ctx.restore();
+        ctx.save(); ctx.translate(x + 5, plotY + 8); ctx.rotate(-Math.PI / 2);
+        flatTextBox(ctx, 0, 0, [label], { stroke: color, color, fill: "rgba(255,255,255,.86)", font: "800 14px 'Noto Serif TC', serif", width: 114, padX: 9, padY: 6, radius: 7 });
+        ctx.restore();
+      }
+      vLine(issueX, "#1d6e8c", `評價日 ${latest.date}`);
+      vLine(obsX, "#9c2d36", `KO觀察起始 第${FCN.observationAfterMonth}個月後`);
+      vLine(maturityX, "#202a3e", `估約到期日 ${FCN.tenorMonths}個月`, [3, 4]);
+      ctx.save(); ctx.strokeStyle = "#202a3e"; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(obsX, plotY + plotH - 28); ctx.lineTo(maturityX, plotY + plotH - 28); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(obsX, plotY + plotH - 33); ctx.lineTo(obsX, plotY + plotH - 23); ctx.moveTo(maturityX, plotY + plotH - 33); ctx.lineTo(maturityX, plotY + plotH - 23); ctx.stroke();
+      flatTextBox(ctx, (obsX + maturityX) / 2 - 100, plotY + plotH - 60, [`FCN / ELN 約${FCN.tenorMonths}個月觀察期間`], { stroke: "#202a3e", color: "#202a3e", fill: "rgba(255,255,255,.84)", font: "800 14px 'Noto Serif TC', serif", width: 205 });
+      ctx.restore();
+
+      // 右側條件面板
+      if (!compact) {
+        ctx.fillStyle = "rgba(255,255,255,.70)"; ctx.strokeStyle = "#26334b"; ctx.lineWidth = 1.5;
+        flatRoundRect(ctx, panelX, panelY, sideW, panelH, 12); ctx.fill(); ctx.stroke();
+        ctx.textAlign = "left"; ctx.fillStyle = "#1a253a"; ctx.font = "800 16px 'Noto Serif TC', serif";
+        let tx = panelX + 16, ty = panelY + 18;
+        ctx.fillText("產品條件", tx, ty); ty += 34;
+        ctx.font = "700 14px 'Noto Serif TC', serif";
+        const panelLines = [
+          "產品代號：WMGS26060291", "發行機構：CITI", "架構：FCN / ELN", "標的：TSM ADR", "台積電 ADR", `天期：${FCN.tenorMonths}個月`, "幣別：USD", "",
+          "配息條件", `年化配息：${pctText(FCN.couponAnnual)}%`, `${FCN.tenorMonths}個月約當：${(lv.totalCoupon * 100).toFixed(2)}%`, "",
+          "價格條件", `初始價：${lv.s0.toFixed(2)} USD`, `KO價${pctText(FCN.koPct)}%：${lv.ko.toFixed(2)} USD`, `履約價K${pctText(FCN.strikePct)}%：${lv.strike.toFixed(2)} USD`, lv.hasBarrier ? `${lv.barrierType}${pctText(FCN.barrierPct)}%：${lv.barrier.toFixed(2)} USD` : "下限條件：沒有", "",
+          "KO條件", `KO Type：${FCN.koType}`, `KO觀察：第${FCN.observationAfterMonth}個月後起`, "",
+          "白話說明", "1. 回到初始價以上，可能提前出場。", `2. 介於履約價到KO間，通常持續觀察配息。`, `3. 到期低於履約價，可能以履約價承接。`, "4. 仍以正式條款書為準。"
+        ];
+        panelLines.forEach(line => {
+          if (line === "") { ty += 10; return; }
+          ctx.fillText(line, tx, ty); ty += 20;
+        });
+      }
+
+      // 圖上說明與更新時間
+      ctx.textAlign = "center"; ctx.fillStyle = "#3b455a"; ctx.font = compact ? "10px 'Noto Sans TC', sans-serif" : "11px 'Noto Sans TC', sans-serif";
+      ctx.fillText(`資料來源：${currentSource || "目前資料"}｜最新收盤：${formatUSD(latest.close)}｜點 K 棒可顯示開高低收`, plotX + plotW / 2, plotY - 16);
+      ctx.textAlign = "left"; ctx.fillStyle = "#536079"; ctx.font = compact ? "10px 'Noto Sans TC', sans-serif" : "13px 'Noto Sans TC', sans-serif";
+      ctx.fillText("說明：本圖以 Yahoo Finance 股價資料估算初始價與條件線；若正式條款書提供最終初始價，請輸入後重跑。KO價與履約價以正式價格精準標示。", 8, H - 10);
+    }
+
 
     async function fetchJson(url) {
       const res = await fetch(url, { cache: "no-store" });
@@ -676,6 +967,7 @@
       rangeHighEl.textContent = formatUSD(Math.max(...data.map(d => d.high)));
       rangeLowEl.textContent = formatUSD(Math.min(...data.map(d => d.low)));
       updateFcnSummary(data);
+      if (viewMode === "flat") drawFlatChart();
       updateSelectedMarker(selectedCandleIndex >= 0 ? Math.min(selectedCandleIndex, data.length - 1) : -1);
       loading.style.display = "none";
     }
@@ -713,6 +1005,7 @@
     $("openFcnPanel").addEventListener("click", () => fcnPanel.classList.add("open"));
     $("closeFcnPanel").addEventListener("click", () => fcnPanel.classList.remove("open"));
     $("resetView").addEventListener("click", resetCamera);
+    $("modeToggle").addEventListener("click", () => setViewMode(viewMode === "flat" ? "3d" : "flat"));
 
     document.querySelectorAll("button[data-range]").forEach(btn => {
       btn.addEventListener("click", () => {
@@ -798,6 +1091,19 @@
       return hit.object.userData;
     }
 
+    flatCanvas.addEventListener("pointerdown", event => { flatPointerDown = { x: event.clientX, y: event.clientY, t: performance.now() }; });
+    flatCanvas.addEventListener("pointerup", event => {
+      if (!flatPointerDown) return;
+      const moved = Math.hypot(event.clientX - flatPointerDown.x, event.clientY - flatPointerDown.y);
+      const elapsed = performance.now() - flatPointerDown.t;
+      flatPointerDown = null;
+      if (moved > 10 || elapsed > 900) return;
+      const rect = flatCanvas.getBoundingClientRect();
+      const x = event.clientX - rect.left, y = event.clientY - rect.top;
+      const hit = flatHitAreas.find(a => x >= a.x && x <= a.x + a.w && y >= a.y && y <= a.y + a.h);
+      if (hit) showCandleDetail(hit.index);
+    });
+
     renderer.domElement.addEventListener("pointerdown", event => { pointerDownInfo = { x: event.clientX, y: event.clientY, t: performance.now() }; });
     renderer.domElement.addEventListener("pointerup", event => {
       if (!pointerDownInfo) return;
@@ -838,6 +1144,7 @@
       camera.updateProjectionMatrix();
       renderer.setSize(window.innerWidth, window.innerHeight);
       renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      if (viewMode === "flat") drawFlatChart();
     });
 
     function animate() {
