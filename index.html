@@ -19,6 +19,8 @@
       --ma5: #36d1ff;
       --ma20: #ffd166;
       --ma60: #b388ff;
+      --ma120: #ff8fab;
+      --ma240: #8ecae6;
       --vol: #ffffff;
       --ko: #ff5f7e;
       --strike: #ff9f1c;
@@ -575,7 +577,7 @@
     <div class="titleRow">
       <div>
         <h1>TSM 台積電 ADR｜3D K 線</h1>
-        <div class="subtitle">已標示 MA5 / MA20 / MA60、成交量、20 日均量，以及 FCN 價格條件。</div>
+        <div class="subtitle">已標示月線 MA20、季線 MA60、半年線 MA120、年線 MA240、成交量與 FCN 價格條件。</div>
       </div>
       <div class="badge"><i class="dot"></i><span id="sourceBadge">讀取中</span></div>
       <button id="hudToggle" class="miniToggle" type="button">展開資訊</button>
@@ -599,17 +601,18 @@
     <div class="buttons">
       <button data-range="1mo">1M</button>
       <button data-range="3mo">3M</button>
-      <button data-range="6mo" class="active">6M</button>
-      <button data-range="1y">1Y</button>
+      <button data-range="6mo">6M</button>
+      <button data-range="1y" class="active">1Y</button>
       <button id="resetView">重設視角</button>
     </div>
 
     <div class="legend">
       <span><i class="swatch" style="background: var(--red)"></i>上漲 K</span>
       <span><i class="swatch" style="background: var(--green)"></i>下跌 K</span>
-      <span><i class="swatch" style="background: var(--ma5)"></i>MA5</span>
-      <span><i class="swatch" style="background: var(--ma20)"></i>MA20</span>
-      <span><i class="swatch" style="background: var(--ma60)"></i>MA60</span>
+      <span><i class="swatch" style="background: var(--ma20)"></i>月線 MA20</span>
+      <span><i class="swatch" style="background: var(--ma60)"></i>季線 MA60</span>
+      <span><i class="swatch" style="background: var(--ma120)"></i>半年線 MA120</span>
+      <span><i class="swatch" style="background: var(--ma240)"></i>年線 MA240</span>
       <span><i class="swatch" style="background: rgba(255,255,255,.55)"></i>成交量</span>
     </div>
 
@@ -686,7 +689,7 @@
         <div class="value" id="fcnAKI">--</div>
       </div>
       <div class="metric">
-        <div class="label" id="fcnTotalCouponLabel">滿期配息示意</div>
+        <div class="label">7 個月滿期配息示意</div>
         <div class="value" id="fcnTotalCoupon">約 7%</div>
       </div>
     </div>
@@ -767,7 +770,7 @@
 
     let currentData = [];
     let currentSource = "";
-    let currentRange = "6mo";
+    let currentRange = "1y";
     let selectedCandleIndex = -1;
     let selectedMarker = null;
     let pointerDownInfo = null;
@@ -820,8 +823,9 @@
     container.appendChild(renderer.domElement);
 
     const controls = new OrbitControls(camera, renderer.domElement);
-    controls.enableDamping = true;
-    controls.dampingFactor = 0.075;
+    controls.enableDamping = false;
+    controls.dampingFactor = 0;
+    controls.autoRotate = false;
     controls.enableZoom = true;
     controls.enablePan = true;
     controls.minDistance = 16;
@@ -852,6 +856,8 @@
       ma5: 0x36d1ff,
       ma20: 0xffd166,
       ma60: 0xb388ff,
+      ma120: 0xff8fab,
+      ma240: 0x8ecae6,
       volume: 0xffffff,
       vma: 0xd7e3ff,
       ko: 0xff5f7e,
@@ -942,7 +948,7 @@
     }
 
     function addIndicators(data) {
-      const periods = [5, 20, 60];
+      const periods = [5, 20, 60, 120, 240];
       for (const p of periods) {
         for (let i = 0; i < data.length; i++) {
           if (i < p - 1) {
@@ -1079,7 +1085,7 @@
       makeLabel("TSM ADR：價格軸 Y｜時間軸 X｜成交量在前排", new THREE.Vector3((startX + xEnd) / 2, priceToY(maxPrice) + 5.2, -1.3), 1.22, .88);
     }
 
-    function renderMA(data, period, color, priceToY, startX, spacing, z, labelOffsetY = 0) {
+    function renderMA(data, period, color, priceToY, startX, spacing, z, labelOffsetY = 0, labelName = null) {
       const points = [];
       for (let i = 0; i < data.length; i++) {
         const v = data[i][`ma${period}`];
@@ -1090,7 +1096,7 @@
       makeLine(points, color, .98);
       const latestPoint = points[points.length - 1];
       const latestVal = data.slice().reverse().find(d => Number.isFinite(d[`ma${period}`]))?.[`ma${period}`];
-      makeLabel(`MA${period} ${formatUSD(latestVal)}`, new THREE.Vector3(latestPoint.x + 7.0, latestPoint.y + labelOffsetY, z), .72, .92, `#${color.toString(16).padStart(6, "0")}`);
+      makeLabel(`${labelName || `MA${period}`} ${formatUSD(latestVal)}`, new THREE.Vector3(latestPoint.x + 7.0, latestPoint.y + labelOffsetY, z), .72, .92, `#${color.toString(16).padStart(6, "0")}`);
     }
 
     function updateFcnPanel(data) {
@@ -1101,7 +1107,6 @@
       fcnAKIEl.textContent = formatUSD(lv.aki);
       document.getElementById("fcnCoupon").textContent = `${(FCN.couponAnnual * 100).toFixed(2).replace(/\.00$/, "")}% / ${(lv.couponMonthly * 100).toFixed(2)}%`;
       document.getElementById("fcnTotalCoupon").textContent = `約 ${(lv.totalCoupon * 100).toFixed(2)}%`;
-      document.getElementById("fcnTotalCouponLabel").textContent = `${FCN.tenorMonths} 個月滿期配息示意`;
       document.getElementById("fcnNote").textContent = `目前條件：${FCN.tenorMonths} 個月、美元計價、年化配息 ${(FCN.couponAnnual * 100).toFixed(2).replace(/\.00$/, "")}%、KO ${(FCN.koPct * 100).toFixed(2).replace(/\.00$/, "")}%、履約價 K ${(FCN.strikePct * 100).toFixed(2).replace(/\.00$/, "")}%、敲入/下限 AKI ${(FCN.akiPct * 100).toFixed(2).replace(/\.00$/, "")}%、第 ${FCN.observationAfterMonth} 個月後觀察、${FCN.koType}。`;
     }
 
@@ -1194,9 +1199,10 @@
         }
       });
 
-      renderMA(data, 5, colors.ma5, priceToY, startX, spacing, -1.25, 0.9);
-      renderMA(data, 20, colors.ma20, priceToY, startX, spacing, -1.45, 0);
-      renderMA(data, 60, colors.ma60, priceToY, startX, spacing, -1.65, -0.9);
+      renderMA(data, 20, colors.ma20, priceToY, startX, spacing, -1.35, 1.0, "月線 MA20");
+      renderMA(data, 60, colors.ma60, priceToY, startX, spacing, -1.60, 0.25, "季線 MA60");
+      renderMA(data, 120, colors.ma120, priceToY, startX, spacing, -1.85, -0.55, "半年線 MA120");
+      renderMA(data, 240, colors.ma240, priceToY, startX, spacing, -2.10, -1.35, "年線 MA240");
 
       if (volumeMaPoints.length > 1) {
         makeLine(volumeMaPoints, colors.vma, .92);
@@ -1351,8 +1357,10 @@
         <div class="detailItem"><div class="k">收盤 Close</div><div class="v">${formatUSD(d.close)}</div></div>
         <div class="detailItem"><div class="k">當日漲跌</div><div class="v">${candleChangeText(d)}</div></div>
         <div class="detailItem"><div class="k">成交量</div><div class="v">${formatVolume(d.volume)}</div></div>
-        <div class="detailItem"><div class="k">MA5</div><div class="v">${formatUSD(d.ma5)}</div></div>
-        <div class="detailItem"><div class="k">MA20 / MA60</div><div class="v">${formatUSD(d.ma20)} / ${formatUSD(d.ma60)}</div></div>
+        <div class="detailItem"><div class="k">月線 MA20</div><div class="v">${formatUSD(d.ma20)}</div></div>
+        <div class="detailItem"><div class="k">季線 MA60</div><div class="v">${formatUSD(d.ma60)}</div></div>
+        <div class="detailItem"><div class="k">半年線 MA120</div><div class="v">${formatUSD(d.ma120)}</div></div>
+        <div class="detailItem"><div class="k">年線 MA240</div><div class="v">${formatUSD(d.ma240)}</div></div>
         <div class="detailItem big"><div class="k">FCN 條件位置</div><div class="detailStatus">
           ${fcnStatus(d.close, lv)}<br>
           S0：${formatUSD(lv.s0)}｜KO：${formatUSD(lv.ko)}｜K：${formatUSD(lv.strike)}｜AKI：${formatUSD(lv.aki)}<br>
@@ -1426,7 +1434,8 @@
         <b>${d.date}｜${up ? "上漲紅 K" : "下跌綠 K"}</b><br>
         開盤：${formatUSD(d.open)}｜最高：${formatUSD(d.high)}<br>
         最低：${formatUSD(d.low)}｜收盤：${formatUSD(d.close)}<br>
-        MA5：${formatUSD(d.ma5)}｜MA20：${formatUSD(d.ma20)}｜MA60：${formatUSD(d.ma60)}<br>
+        月線 MA20：${formatUSD(d.ma20)}｜季線 MA60：${formatUSD(d.ma60)}<br>
+        半年線 MA120：${formatUSD(d.ma120)}｜年線 MA240：${formatUSD(d.ma240)}<br>
         成交量：${formatVolume(d.volume)}｜20日均量：${formatVolume(d.vma20)}<br>
         <hr style="border:0;border-top:1px solid rgba(255,255,255,.13);margin:7px 0">
         FCN 狀態：${fcnStatus(d.close, lv)}<br>
@@ -1448,11 +1457,10 @@
     function animate() {
       requestAnimationFrame(animate);
       controls.update();
-      root.rotation.y += 0.00035;
       renderer.render(scene, camera);
     }
 
-    loadRange("6mo");
+    loadRange("1y");
     animate();
   </script>
 </body>
