@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>台積電 ADR｜FCN / ELN 條件圖 V12</title>
+  <title>台積電 ADR｜FCN / ELN 條件圖 V13</title>
   <meta name="description" content="台積電 ADR FCN/ELN 條件圖，預設平面K線圖，支援3D切換、手機點選單根K棒與FCN條件更新。" />
   <style>
     :root {
@@ -93,7 +93,7 @@
     <header>
       <h1>台積電 ADR｜FCN / ELN 條件圖</h1>
       <div class="sub" id="sourceLine">資料讀取中｜平面圖為主要檢視畫面，可切換 3D 輔助展示</div>
-      <div class="modeNotice">手機版先顯示平面圖：一次約半年，可左右滑動；選日期會連動資料卡。</div>
+      <div class="modeNotice">手機版先顯示平面圖：一次約半年，可左右滑動；左側價格刻度會跟著畫面移動。</div>
     </header>
 
     <section id="flatView">
@@ -359,9 +359,28 @@
       function hLine(y,color,dash=false,width=2){ctx.save();ctx.strokeStyle=color;ctx.lineWidth=width;if(dash)ctx.setLineDash([8,5]);ctx.beginPath();ctx.moveTo(plotX,y);ctx.lineTo(plotX+plotW,y);ctx.stroke();ctx.restore();}
       hLine(koY,"#8e2530",false,2.2); hLine(strikeY,"#227da0",true,2.0); if(lv.hasBarrier) hLine(barrierY,"#2d9ec0",true,2.0);
 
-      // y axis labels
-      ctx.save(); ctx.fillStyle="#34405a"; ctx.font=(mobile?"11px":"12px")+" 'Noto Sans TC', sans-serif"; ctx.textAlign="right"; ctx.textBaseline="middle";
-      for(let i=0;i<=5;i++){const p=minP+(maxP-minP)*i/5;const y=yOf(p);ctx.fillText(p.toFixed(0),plotX-7,y);}
+      // sticky y-axis labels: 手機左右滑動時，價格刻度會跟著目前可視窗一起顯示。
+      const axisPanelW = mobile ? 40 : 52;
+      const axisPanelX = clamp(visibleLeft + 2, 0, W - axisPanelW - 2);
+      const axisLineX = axisPanelX + axisPanelW - 2;
+      ctx.save();
+      ctx.fillStyle = mobile ? "rgba(244,234,213,.90)" : "rgba(244,234,213,.82)";
+      ctx.fillRect(axisPanelX, plotY - 2, axisPanelW, plotH + 4);
+      ctx.strokeStyle = "rgba(38,51,75,.35)";
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.moveTo(axisLineX, plotY);
+      ctx.lineTo(axisLineX, plotY + plotH);
+      ctx.stroke();
+      ctx.fillStyle="#34405a";
+      ctx.font=(mobile?"10px":"12px")+" 'Noto Sans TC', sans-serif";
+      ctx.textAlign="right";
+      ctx.textBaseline="middle";
+      for(let i=0;i<=5;i++){
+        const p=minP+(maxP-minP)*i/5;
+        const y=yOf(p);
+        ctx.fillText(p.toFixed(0),axisLineX-5,y);
+      }
       ctx.restore();
 
       // volume panel
@@ -397,8 +416,8 @@
       }
       function smallTag(x,y,text,color){
         ctx.save();
-        ctx.font=(mobile?"900 10px":"900 12px")+" 'Noto Sans TC', sans-serif";
-        const w=Math.min(mobile?44:58,ctx.measureText(text).width+12), h=mobile?17:20;
+        ctx.font=(mobile?"900 9px":"900 12px")+" 'Noto Sans TC', sans-serif";
+        const w=Math.min(mobile?46:58,ctx.measureText(text).width+12), h=mobile?16:20;
         rr(ctx,x,y-h/2,w,h,8); ctx.fillStyle="rgba(255,255,255,.70)"; ctx.strokeStyle=color; ctx.lineWidth=1.1; ctx.fill(); ctx.stroke();
         ctx.fillStyle=color; ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText(text,x+w/2,y,w-6); ctx.restore();
       }
@@ -412,20 +431,20 @@
       });
 
       // 條件價格標籤：固定在目前可視窗右側，小字顯示；左右滑動時仍看得到數字，且不會壓在K線主體上。
-      const labelH=mobile?20:24;
-      const labelW=mobile?112:156;
-      const futureLabelX = clamp(visibleRight - labelW - 8, plotX+6, plotX+plotW-labelW-6);
+      const labelH=mobile?18:24;
+      const labelW=mobile?104:150;
+      const futureLabelX = clamp(visibleRight - labelW - 6, visibleLeft + axisPanelW + 8, plotX+plotW-labelW-6);
       const conds=[
-        {y:koY, text:`出場 ${lv.ko.toFixed(2)}`, color:"#8e2530"},
-        {y:strikeY, text:`執行 ${lv.strike.toFixed(2)}`, color:"#227da0"},
+        {y:koY, text:`出場價 ${lv.ko.toFixed(2)}`, color:"#8e2530"},
+        {y:strikeY, text:`執行價 ${lv.strike.toFixed(2)}`, color:"#227da0"},
       ];
       if(lv.hasBarrier) conds.push({y:barrierY, text:`保護傘 ${lv.barrier.toFixed(2)}`, color:"#2d9ec0"});
       else conds.push({y:plotY+plotH-(mobile?50:60), text:`保護傘 無`, color:"#2d9ec0"});
       const sorted=conds.map(c=>({...c,y0:clamp(c.y-labelH/2,plotY+4,plotY+plotH-labelH-4)})).sort((a,b)=>a.y0-b.y0);
-      for(let i=1;i<sorted.length;i++) if(sorted[i].y0 < sorted[i-1].y0 + labelH + 4) sorted[i].y0 = sorted[i-1].y0 + labelH + 4;
-      const overflow = sorted.length ? sorted[sorted.length-1].y0 + labelH + 4 - (plotY+plotH) : 0;
+      for(let i=1;i<sorted.length;i++) if(sorted[i].y0 < sorted[i-1].y0 + labelH + 3) sorted[i].y0 = sorted[i-1].y0 + labelH + 3;
+      const overflow = sorted.length ? sorted[sorted.length-1].y0 + labelH + 3 - (plotY+plotH) : 0;
       if(overflow>0) sorted.forEach(c=>c.y0-=overflow);
-      sorted.forEach(c=>pill(ctx, futureLabelX, c.y0, labelW, labelH, c.text, c.color, "rgba(255,255,255,.82)", mobile?"900 10px 'Noto Sans TC'":"900 12px 'Noto Sans TC'"));
+      sorted.forEach(c=>pill(ctx, futureLabelX, c.y0, labelW, labelH, c.text, c.color, "rgba(255,255,255,.78)", mobile?"900 9px 'Noto Sans TC'":"900 12px 'Noto Sans TC'"));
 
       // vertical date lines
       function vLine(x,color){ctx.save();ctx.strokeStyle=color;ctx.setLineDash([3,5]);ctx.lineWidth=1.8;ctx.beginPath();ctx.moveTo(x,plotY);ctx.lineTo(x,volY+volH);ctx.stroke();ctx.restore();}
