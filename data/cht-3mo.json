@@ -4,15 +4,15 @@
   "source": "Yahoo Finance chart API via GitHub Actions",
   "range": "3mo",
   "interval": "1d",
-  "updatedAt": "2026-07-01 13:41 UTC",
+  "updatedAt": "2026-07-01 16:40 UTC",
   "latest": {
     "time": 1782912600,
     "date": "2026/07/01",
-    "open": 44.33,
+    "open": 44.22,
     "high": 44.615,
     "low": 43.94,
-    "close": 44.385,
-    "volume": 1538
+    "close": 44.03,
+    "volume": 42680
   },
   "rows": [
     {
@@ -576,11 +576,11 @@
     {
       "time": 1782912600,
       "date": "2026/07/01",
-      "open": 44.33,
+      "open": 44.22,
       "high": 44.615,
       "low": 43.94,
-      "close": 44.385,
-      "volume": 1538
+      "close": 44.03,
+      "volume": 42680
     }
   ]
 }
