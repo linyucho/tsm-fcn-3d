@@ -14,5 +14,5 @@ CHT 1mo: 21 rows, latest close 43.24 on 2026/07/28
 CHT 3mo: 62 rows, latest close 43.24 on 2026/07/28
 CHT 6mo: 124 rows, latest close 43.24 on 2026/07/28
 CHT 1y: 251 rows, latest close 43.24 on 2026/07/28
-CHT 2y: 500 rows, latest close 43.24 on 2026/07/28
-CHT 5y: 1253 rows, latest close 43.24 on 2026/07/28
+CHT 2y: 501 rows, latest close 43.24 on 2026/07/28
+CHT 5y: 1254 rows, latest close 43.24 on 2026/07/28
