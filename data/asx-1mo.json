@@ -4,7 +4,7 @@
   "source": "Yahoo Finance chart API via GitHub Actions",
   "range": "1mo",
   "interval": "1d",
-  "updatedAt": "2026-08-17 07:16 UTC",
+  "updatedAt": "2026-08-17 09:01 UTC",
   "latest": {
     "time": 1786714200,
     "date": "2026/08/14",
