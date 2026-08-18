@@ -10,9 +10,9 @@ ASX 6mo: 124 rows, latest close 39.54 on 2026/08/14
 ASX 1y: 250 rows, latest close 39.54 on 2026/08/14
 ASX 2y: 499 rows, latest close 39.54 on 2026/08/14
 ASX 5y: 1253 rows, latest close 39.54 on 2026/08/14
-CHT 1mo: 17 rows, latest close 42.58 on 2026/08/14
-CHT 3mo: 59 rows, latest close 42.58 on 2026/08/14
-CHT 6mo: 121 rows, latest close 42.58 on 2026/08/14
-CHT 1y: 247 rows, latest close 42.58 on 2026/08/14
-CHT 2y: 496 rows, latest close 42.58 on 2026/08/14
-CHT 5y: 1250 rows, latest close 42.58 on 2026/08/14
+CHT 1mo: 20 rows, latest close 42.58 on 2026/08/14
+CHT 3mo: 62 rows, latest close 42.58 on 2026/08/14
+CHT 6mo: 124 rows, latest close 42.58 on 2026/08/14
+CHT 1y: 250 rows, latest close 42.58 on 2026/08/14
+CHT 2y: 499 rows, latest close 42.58 on 2026/08/14
+CHT 5y: 1253 rows, latest close 42.58 on 2026/08/14
