@@ -5,13 +5,13 @@ TSM 1y: 252 rows, latest close 415.5 on 2026/09/02
 TSM 2y: 502 rows, latest close 415.5 on 2026/09/02
 TSM 5y: 1254 rows, latest close 415.5 on 2026/09/02
 ASX 1mo: 23 rows, latest close 37.08 on 2026/09/02
-ASX 3mo: 63 rows, latest close 37.08 on 2026/09/02
+ASX 3mo: 64 rows, latest close 37.08 on 2026/09/02
 ASX 6mo: 128 rows, latest close 37.08 on 2026/09/02
 ASX 1y: 252 rows, latest close 37.08 on 2026/09/02
 ASX 2y: 502 rows, latest close 37.08 on 2026/09/02
-ASX 5y: 1253 rows, latest close 37.08 on 2026/09/02
+ASX 5y: 1254 rows, latest close 37.08 on 2026/09/02
 CHT 1mo: 23 rows, latest close 43.48 on 2026/09/02
-CHT 3mo: 63 rows, latest close 43.48 on 2026/09/02
+CHT 3mo: 64 rows, latest close 43.48 on 2026/09/02
 CHT 6mo: 128 rows, latest close 43.48 on 2026/09/02
 CHT 1y: 252 rows, latest close 43.48 on 2026/09/02
 CHT 2y: 502 rows, latest close 43.48 on 2026/09/02
